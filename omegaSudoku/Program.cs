@@ -10,6 +10,7 @@ namespace omegaSudoku
     {
         static void Main(string[] args)
         {
+            Console.WriteLine("Adasdad");
         }
     }
 }
