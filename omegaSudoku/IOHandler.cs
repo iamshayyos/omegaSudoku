@@ -6,21 +6,60 @@ using System.Threading.Tasks;
 
 namespace omegaSudoku
 {
-    public class InputHandler
+    public class IOHandler
     {
-        public string GetInput()
+        private Validator _validator;
+        private SudokuSolver _solver;
+
+        public IOHandler()
         {
-            Console.WriteLine("Enter the Sudoku board:");
+            _validator = new Validator();
+            _solver = new SudokuSolver();
+        }
+
+        public void Run()
+        {
+            Console.WriteLine("Welcome to Omega Sudoku!");
+
+            //input
+            string input = GetInput();
+
+            // validation
+            if (!_validator.IsValidFormat(input))
+            {
+                PrintMessage("Invalid input format. Make sure the input represents a valid Sudoku board.");
+                return;
+            }
+
+            // generate board
+            int boardSize = (int)Math.Sqrt(input.Length);
+            SudokuBoard board = new SudokuBoard(input, boardSize);
+
+            // print initial board
+            PrintMessage("Initial Sudoku board:");
+            board.PrintBoard();
+
+            // solving the board
+            if (_solver.Solve(board.Board, boardSize))
+            {
+                PrintMessage("Solved Sudoku board:");
+                board.PrintBoard();
+            }
+            else
+            {
+                PrintMessage("This Sudoku board is unsolvable.");
+            }
+        }
+
+        private string GetInput()
+        {
+            Console.WriteLine("Enter the Sudoku board as a single string:");
             return Console.ReadLine();
         }
-    }
 
-    public class OutputHandler
-    {
-        public void PrintMessage(string message)
+        private void PrintMessage(string message)
         {
             Console.WriteLine(message);
         }
     }
-
 }

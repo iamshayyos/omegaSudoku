@@ -10,7 +10,8 @@ namespace omegaSudoku
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Adasdad");
+            IOHandler ioHandler = new IOHandler();
+            ioHandler.Run();
         }
     }
 }
