@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using omegaSudoku;
 
 namespace omegaSudoku
 {
@@ -11,7 +7,7 @@ namespace omegaSudoku
         static void Main(string[] args)
         {
             IOHandler ioHandler = new IOHandler();
-            ioHandler.Run();
+            ioHandler.Run(); 
         }
     }
 }
