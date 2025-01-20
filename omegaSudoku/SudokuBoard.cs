@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace omegaSudoku
 {
@@ -37,23 +33,17 @@ namespace omegaSudoku
         {
             for (int i = 0; i < Size; i++)
             {
-                if (i % Math.Sqrt(Size) == 0 && i != 0)
-                {
-                    Console.WriteLine(new string('-', Size * 2 + (int)Math.Sqrt(Size) - 1));
-                }
-
                 for (int j = 0; j < Size; j++)
                 {
-                    if (j % Math.Sqrt(Size) == 0 && j != 0)
-                    {
-                        Console.Write("| ");
-                    }
+                    if (j % Math.Sqrt(Size) == 0 && j != 0) Console.Write("| ");
                     Console.Write(Board[i, j] == 0 ? ". " : Board[i, j] + " ");
                 }
                 Console.WriteLine();
+                if ((i + 1) % Math.Sqrt(Size) == 0 && i != Size - 1)
+                {
+                    Console.WriteLine(new string('-', Size * 2 + (int)Math.Sqrt(Size) - 1));
+                }
             }
         }
-
     }
-
 }
