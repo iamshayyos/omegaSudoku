@@ -59,7 +59,7 @@ namespace omegaSudoku
 
                 try
                 {
-                    isSolved = SolveWithTimeout(board, boardSize, TimeSpan.FromSeconds(1));
+                    isSolved = SolveWithTimeout(board, boardSize, TimeSpan.FromSeconds(10));
                 }
                 catch (TimeoutException)
                 {
