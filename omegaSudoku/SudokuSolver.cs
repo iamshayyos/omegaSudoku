@@ -16,7 +16,9 @@ namespace omegaSudoku
 
                 progress |= ApplyHiddenSingles(board, candidates);
                 progress |= ApplyUniquenessInUnit(board, candidates, size);
-                progress |= ApplyNakedPairs(board, candidates, size);
+                progress |= ApplyNakedPairs(candidates, size);
+                progress |= ApplyLockedCandidates(candidates, size);
+                progress |= ApplyHiddenTriplesQuads(candidates, size);
 
                 if (!progress)
                     break;
@@ -25,173 +27,51 @@ namespace omegaSudoku
             return BacktrackingSolve(board, size);
         }
 
-        private Dictionary<(int, int), List<int>> InitializeCandidates(int[,] board, int size)
-        {
-            var candidates = new Dictionary<(int, int), List<int>>();
-            for (int row = 0; row < size; row++)
-            {
-                for (int col = 0; col < size; col++)
-                {
-                    if (board[row, col] == 0)
-                    {
-                        candidates[(row, col)] = new List<int>();
-                        for (int num = 1; num <= size; num++)
-                        {
-                            if (IsValidMove(board, row, col, num, size))
-                                candidates[(row, col)].Add(num);
-                        }
-                    }
-                }
-            }
-            return candidates;
-        }
-
-        private bool ApplyHiddenSingles(int[,] board, Dictionary<(int, int), List<int>> candidates)
-        {
-            bool progress = false;
-            foreach (var entry in candidates)
-            {
-                if (entry.Value.Count == 1)
-                {
-                    var (row, col) = entry.Key;
-                    board[row, col] = entry.Value[0];
-                    UpdateCandidates(candidates, board, board.GetLength(0), row, col, entry.Value[0]);
-                    progress = true;
-                }
-            }
-            return progress;
-        }
-
-        private bool ApplyUniquenessInUnit(int[,] board, Dictionary<(int, int), List<int>> candidates, int size)
-        {
-            bool progress = false;
-
-            var candidateKeys = new List<(int, int)>(candidates.Keys);
-            foreach (var key in candidateKeys)
-            {
-                var (row, col) = key;
-                var cellCandidates = candidates[key];
-
-                foreach (var num in cellCandidates)
-                {
-                    if (IsUniqueInUnit(candidates, row, col, num, size))
-                    {
-                        board[row, col] = num;
-                        candidates.Remove((row, col));
-                        UpdateCandidates(candidates, board, size, row, col, num);
-                        progress = true;
-                        break;
-                    }
-                }
-            }
-
-            return progress;
-        }
-
-        private bool IsUniqueInUnit(Dictionary<(int, int), List<int>> candidates, int row, int col, int num, int size)
-        {
-            foreach (var entry in candidates)
-            {
-                var (r, c) = entry.Key;
-                if ((r == row || c == col || (r / (int)Math.Sqrt(size) == row / (int)Math.Sqrt(size) && c / (int)Math.Sqrt(size) == col / (int)Math.Sqrt(size))) &&
-                    (r != row || c != col) &&
-                    entry.Value.Contains(num))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private bool ApplyNakedPairs(int[,] board, Dictionary<(int, int), List<int>> candidates, int size)
-        {
-            bool progress = false;
-
-            foreach (var entry1 in candidates)
-            {
-                foreach (var entry2 in candidates)
-                {
-                    if (entry1.Key != entry2.Key && entry1.Value.Count == 2 && entry1.Value.SequenceEqual(entry2.Value))
-                    {
-                        var (row1, col1) = entry1.Key;
-                        var (row2, col2) = entry2.Key;
-
-                        foreach (var entry3 in candidates)
-                        {
-                            if (entry3.Key != entry1.Key && entry3.Key != entry2.Key)
-                            {
-                                var (row3, col3) = entry3.Key;
-                                if (row1 == row3 || col1 == col3 || (row1 / (int)Math.Sqrt(size) == row3 / (int)Math.Sqrt(size) && col1 / (int)Math.Sqrt(size) == col3 / (int)Math.Sqrt(size)))
-                                {
-                                    foreach (var num in entry1.Value)
-                                    {
-                                        if (entry3.Value.Contains(num))
-                                        {
-                                            entry3.Value.Remove(num);
-                                            progress = true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            return progress;
-        }
-
         private bool BacktrackingSolve(int[,] board, int size)
         {
             for (int row = 0; row < size; row++)
             {
                 for (int col = 0; col < size; col++)
                 {
-                    if (board[row, col] == 0)
+                    if (board[row, col] == 0) 
                     {
                         for (int num = 1; num <= size; num++)
                         {
-                            if (IsValidMove(board, row, col, num, size))
-                            {
+                            if (IsValidMove(board, row, col, num, size))                             {
                                 board[row, col] = num;
-                                if (BacktrackingSolve(board, size))
+
+                                if (BacktrackingSolve(board, size)) 
                                     return true;
-                                board[row, col] = 0;
+
+                                board[row, col] = 0; 
                             }
                         }
-                        return false;
+
+                        return false; 
                     }
                 }
             }
-            return true;
-        }
 
-        private void UpdateCandidates(Dictionary<(int, int), List<int>> candidates, int[,] board, int size, int row, int col, int num)
-        {
-            var candidateKeys = new List<(int, int)>(candidates.Keys);
-            foreach (var key in candidateKeys)
-            {
-                var (r, c) = key;
-                if (r == row || c == col || (r / (int)Math.Sqrt(size) == row / (int)Math.Sqrt(size) && c / (int)Math.Sqrt(size) == col / (int)Math.Sqrt(size)))
-                {
-                    candidates[key].Remove(num);
-                    if (candidates[key].Count == 0)
-                        candidates.Remove(key);
-                }
-            }
+            return true; 
         }
 
         private bool IsValidMove(int[,] board, int row, int col, int num, int size)
         {
             for (int i = 0; i < size; i++)
             {
-                if (board[row, i] == num || board[i, col] == num)
+                if (board[row, i] == num)
+                    return false;
+            }
+
+            for (int i = 0; i < size; i++)
+            {
+                if (board[i, col] == num)
                     return false;
             }
 
             int subgridSize = (int)Math.Sqrt(size);
-            int startRow = row / subgridSize * subgridSize;
-            int startCol = col / subgridSize * subgridSize;
+            int startRow = (row / subgridSize) * subgridSize;
+            int startCol = (col / subgridSize) * subgridSize;
 
             for (int r = startRow; r < startRow + subgridSize; r++)
             {
@@ -201,7 +81,268 @@ namespace omegaSudoku
                         return false;
                 }
             }
-            return true;
+
+            return true; 
+        }
+
+
+        private List<int>[,] InitializeCandidates(int[,] board, int size)
+        {
+            var candidates = new List<int>[size, size];
+            for (int row = 0; row < size; row++)
+            {
+                for (int col = 0; col < size; col++)
+                {
+                    if (board[row, col] == 0)
+                    {
+                        candidates[row, col] = new List<int>();
+                        for (int num = 1; num <= size; num++)
+                        {
+                            if (IsValidMove(board, row, col, num, size))
+                                candidates[row, col].Add(num);
+                        }
+                    }
+                    else
+                    {
+                        candidates[row, col] = null;
+                    }
+                }
+            }
+            return candidates;
+        }
+
+        private bool ApplyHiddenSingles(int[,] board, List<int>[,] candidates)
+        {
+            bool progress = false;
+
+            for (int row = 0; row < candidates.GetLength(0); row++)
+            {
+                for (int col = 0; col < candidates.GetLength(1); col++)
+                {
+                    if (candidates[row, col] != null && candidates[row, col].Count == 1)
+                    {
+                        int value = candidates[row, col][0];
+                        board[row, col] = value;
+                        UpdateCandidates(candidates, board, row, col, value);
+                        progress = true;
+                    }
+                }
+            }
+
+            return progress;
+        }
+
+        private bool ApplyUniquenessInUnit(int[,] board, List<int>[,] candidates, int size)
+        {
+            bool progress = false;
+            int subgridSize = (int)Math.Sqrt(size);
+
+            for (int unit = 0; unit < size; unit++)
+            {
+                for (int num = 1; num <= size; num++)
+                {
+                    var unitCells = GetUnitCells(unit, subgridSize, size);
+                    var possibleCells = unitCells.Where(cell => candidates[cell.Item1, cell.Item2]?.Contains(num) == true).ToList();
+
+                    if (possibleCells.Count == 1)
+                    {
+                        var (row, col) = possibleCells[0];
+                        board[row, col] = num;
+                        UpdateCandidates(candidates, board, row, col, num);
+                        progress = true;
+                    }
+                }
+            }
+
+            return progress;
+        }
+
+        private bool ApplyNakedPairs(List<int>[,] candidates, int size)
+        {
+            bool progress = false;
+            int subgridSize = (int)Math.Sqrt(size);
+
+            for (int unit = 0; unit < size; unit++)
+            {
+                var unitCells = GetUnitCells(unit, subgridSize, size);
+                var pairs = unitCells
+                    .Where(cell => candidates[cell.Item1, cell.Item2]?.Count == 2)
+                    .GroupBy(cell => string.Join(",", candidates[cell.Item1, cell.Item2]))
+                    .Where(g => g.Count() == 2);
+
+                foreach (var pair in pairs)
+                {
+                    var pairCandidates = candidates[pair.First().Item1, pair.First().Item2];
+                    foreach (var cell in unitCells.Where(cell => !pair.Contains(cell)))
+                    {
+                        if (candidates[cell.Item1, cell.Item2] != null)
+                        {
+                            pairCandidates.ForEach(c => candidates[cell.Item1, cell.Item2].Remove(c));
+                            progress = true;
+                        }
+                    }
+                }
+            }
+
+            return progress;
+        }
+
+        private bool ApplyLockedCandidates(List<int>[,] candidates, int size)
+        {
+            bool progress = false;
+            int subgridSize = (int)Math.Sqrt(size);
+
+            for (int unit = 0; unit < size; unit++)
+            {
+                var unitCells = GetUnitCells(unit, subgridSize, size);
+                var candidateOccurrences = new Dictionary<int, List<(int, int)>>();
+
+                foreach (var cell in unitCells)
+                {
+                    if (candidates[cell.Item1, cell.Item2] != null)
+                    {
+                        foreach (var candidate in candidates[cell.Item1, cell.Item2])
+                        {
+                            if (!candidateOccurrences.ContainsKey(candidate))
+                                candidateOccurrences[candidate] = new List<(int, int)>();
+                            candidateOccurrences[candidate].Add(cell);
+                        }
+                    }
+                }
+
+                foreach (var kvp in candidateOccurrences)
+                {
+                    if (kvp.Value.All(c => c.Item1 == kvp.Value[0].Item1))
+                    {
+                        int lockedRow = kvp.Value[0].Item1;
+                        foreach (var cell in GetRowCells(lockedRow, size).Except(unitCells))
+                        {
+                            if (candidates[cell.Item1, cell.Item2]?.Remove(kvp.Key) == true)
+                                progress = true;
+                        }
+                    }
+
+                    if (kvp.Value.All(c => c.Item2 == kvp.Value[0].Item2))
+                    {
+                        int lockedCol = kvp.Value[0].Item2;
+                        foreach (var cell in GetColCells(lockedCol, size).Except(unitCells))
+                        {
+                            if (candidates[cell.Item1, cell.Item2]?.Remove(kvp.Key) == true)
+                                progress = true;
+                        }
+                    }
+                }
+            }
+
+            return progress;
+        }
+
+        private bool ApplyHiddenTriplesQuads(List<int>[,] candidates, int size)
+        {
+            return ApplyHiddenSubset(candidates, size, 3) || ApplyHiddenSubset(candidates, size, 4);
+        }
+
+        private bool ApplyHiddenSubset(List<int>[,] candidates, int size, int subsetSize)
+        {
+            bool progress = false;
+            int subgridSize = (int)Math.Sqrt(size);
+
+            for (int unit = 0; unit < size; unit++)
+            {
+                var unitCells = GetUnitCells(unit, subgridSize, size);
+                var candidateOccurrences = new Dictionary<int, List<(int, int)>>();
+
+                foreach (var cell in unitCells)
+                {
+                    if (candidates[cell.Item1, cell.Item2] != null)
+                    {
+                        foreach (var candidate in candidates[cell.Item1, cell.Item2])
+                        {
+                            if (!candidateOccurrences.ContainsKey(candidate))
+                                candidateOccurrences[candidate] = new List<(int, int)>();
+                            candidateOccurrences[candidate].Add(cell);
+                        }
+                    }
+                }
+
+                var subsets = GetCombinations(candidateOccurrences.Keys.ToList(), subsetSize);
+
+                foreach (var subset in subsets)
+                {
+                    var subsetCells = subset.SelectMany(c => candidateOccurrences[c]).Distinct().ToList();
+
+                    if (subsetCells.Count == subsetSize)
+                    {
+                        foreach (var cell in subsetCells)
+                        {
+                            candidates[cell.Item1, cell.Item2].RemoveAll(c => !subset.Contains(c));
+                            progress = true;
+                        }
+                    }
+                }
+            }
+
+            return progress;
+        }
+
+        private IEnumerable<(int, int)> GetUnitCells(int unit, int subgridSize, int size)
+        {
+            int startRow = (unit / subgridSize) * subgridSize;
+            int startCol = (unit % subgridSize) * subgridSize;
+
+            for (int row = 0; row < subgridSize; row++)
+            {
+                for (int col = 0; col < subgridSize; col++)
+                {
+                    yield return (startRow + row, startCol + col);
+                }
+            }
+        }
+
+        private IEnumerable<(int, int)> GetRowCells(int row, int size)
+        {
+            for (int col = 0; col < size; col++)
+                yield return (row, col);
+        }
+
+        private IEnumerable<(int, int)> GetColCells(int col, int size)
+        {
+            for (int row = 0; row < size; row++)
+                yield return (row, col);
+        }
+
+        private void UpdateCandidates(List<int>[,] candidates, int[,] board, int row, int col, int value)
+        {
+            int size = board.GetLength(0);
+            int subgridSize = (int)Math.Sqrt(size);
+
+            for (int i = 0; i < size; i++)
+            {
+                candidates[row, i]?.Remove(value);
+                candidates[i, col]?.Remove(value);
+            }
+
+            int startRow = (row / subgridSize) * subgridSize;
+            int startCol = (col / subgridSize) * subgridSize;
+
+            for (int r = startRow; r < startRow + subgridSize; r++)
+            {
+                for (int c = startCol; c < startCol + subgridSize; c++)
+                {
+                    candidates[r, c]?.Remove(value);
+                }
+            }
+
+            candidates[row, col] = null;
+        }
+
+        public static IEnumerable<List<T>> GetCombinations<T>(List<T> list, int length)
+        {
+            if (length == 0) return new List<List<T>> { new List<T>() };
+
+            return list.SelectMany((item, index) =>
+                GetCombinations(list.Skip(index + 1).ToList(), length - 1)
+                    .Select(combination => new List<T> { item }.Concat(combination).ToList()));
         }
     }
 }
