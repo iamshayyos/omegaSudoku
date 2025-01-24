@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace omegaSudoku
 {
@@ -8,341 +7,116 @@ namespace omegaSudoku
     {
         public bool Solve(int[,] board, int size)
         {
-            var candidates = InitializeCandidates(board, size);
+            var rows = new int[size];
+            var cols = new int[size];
+            var subgrids = new int[size];
 
-            while (true)
-            {
-                bool progress = false;
+            InitializeBitmasks(board, size, rows, cols, subgrids);
 
-                progress |= ApplyHiddenSingles(board, candidates);
-                progress |= ApplyUniquenessInUnit(board, candidates, size);
-                progress |= ApplyNakedPairs(candidates, size);
-                progress |= ApplyLockedCandidates(candidates, size);
-                progress |= ApplyHiddenTriplesQuads(candidates, size);
-
-                if (!progress)
-                    break;
-            }
-
-            return BacktrackingSolve(board, size);
+            return BacktrackWithHeuristics(board, size, rows, cols, subgrids);
         }
 
-        private bool BacktrackingSolve(int[,] board, int size)
+        private void InitializeBitmasks(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
         {
-            for (int row = 0; row < size; row++)
-            {
-                for (int col = 0; col < size; col++)
-                {
-                    if (board[row, col] == 0) 
-                    {
-                        for (int num = 1; num <= size; num++)
-                        {
-                            if (IsValidMove(board, row, col, num, size))                             {
-                                board[row, col] = num;
-
-                                if (BacktrackingSolve(board, size)) 
-                                    return true;
-
-                                board[row, col] = 0; 
-                            }
-                        }
-
-                        return false; 
-                    }
-                }
-            }
-
-            return true; 
-        }
-
-        private bool IsValidMove(int[,] board, int row, int col, int num, int size)
-        {
-            for (int i = 0; i < size; i++)
-            {
-                if (board[row, i] == num)
-                    return false;
-            }
-
-            for (int i = 0; i < size; i++)
-            {
-                if (board[i, col] == num)
-                    return false;
-            }
-
             int subgridSize = (int)Math.Sqrt(size);
-            int startRow = (row / subgridSize) * subgridSize;
-            int startCol = (col / subgridSize) * subgridSize;
-
-            for (int r = startRow; r < startRow + subgridSize; r++)
+            for (int r = 0; r < size; r++)
             {
-                for (int c = startCol; c < startCol + subgridSize; c++)
+                for (int c = 0; c < size; c++)
                 {
-                    if (board[r, c] == num)
-                        return false;
-                }
-            }
-
-            return true; 
-        }
-
-
-        private List<int>[,] InitializeCandidates(int[,] board, int size)
-        {
-            var candidates = new List<int>[size, size];
-            for (int row = 0; row < size; row++)
-            {
-                for (int col = 0; col < size; col++)
-                {
-                    if (board[row, col] == 0)
+                    int value = board[r, c];
+                    if (value != 0)
                     {
-                        candidates[row, col] = new List<int>();
-                        for (int num = 1; num <= size; num++)
-                        {
-                            if (IsValidMove(board, row, col, num, size))
-                                candidates[row, col].Add(num);
-                        }
-                    }
-                    else
-                    {
-                        candidates[row, col] = null;
+                        int bit = 1 << (value - 1);
+                        rows[r] |= bit;
+                        cols[c] |= bit;
+                        subgrids[GetSubgridIndex(r, c, subgridSize)] |= bit;
                     }
                 }
             }
-            return candidates;
         }
 
-        private bool ApplyHiddenSingles(int[,] board, List<int>[,] candidates)
+        private bool BacktrackWithHeuristics(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
         {
-            bool progress = false;
+            (int row, int col)? nextCell = GetCellWithFewestCandidates(board, size, rows, cols, subgrids);
 
-            for (int row = 0; row < candidates.GetLength(0); row++)
+            if (nextCell == null) return true;
+
+            int rowIndex = nextCell.Value.row;
+            int colIndex = nextCell.Value.col;
+            int subgridIndex = GetSubgridIndex(rowIndex, colIndex, (int)Math.Sqrt(size));
+
+            int availableValues = GetAvailableValues(rows[rowIndex], cols[colIndex], subgrids[subgridIndex], size);
+
+            for (int bit = 1; bit <= size; bit++)
             {
-                for (int col = 0; col < candidates.GetLength(1); col++)
+                if ((availableValues & (1 << (bit - 1))) != 0)
                 {
-                    if (candidates[row, col] != null && candidates[row, col].Count == 1)
-                    {
-                        int value = candidates[row, col][0];
-                        board[row, col] = value;
-                        UpdateCandidates(candidates, board, row, col, value);
-                        progress = true;
-                    }
+                    board[rowIndex, colIndex] = bit;
+                    rows[rowIndex] |= (1 << (bit - 1));
+                    cols[colIndex] |= (1 << (bit - 1));
+                    subgrids[subgridIndex] |= (1 << (bit - 1));
+
+                    if (BacktrackWithHeuristics(board, size, rows, cols, subgrids))
+                        return true;
+
+                    board[rowIndex, colIndex] = 0;
+                    rows[rowIndex] &= ~(1 << (bit - 1));
+                    cols[colIndex] &= ~(1 << (bit - 1));
+                    subgrids[subgridIndex] &= ~(1 << (bit - 1));
                 }
             }
 
-            return progress;
+            return false;
         }
 
-        private bool ApplyUniquenessInUnit(int[,] board, List<int>[,] candidates, int size)
+        private (int, int)? GetCellWithFewestCandidates(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
         {
-            bool progress = false;
-            int subgridSize = (int)Math.Sqrt(size);
+            int minCandidates = int.MaxValue;
+            (int, int)? bestCell = null;
 
-            for (int unit = 0; unit < size; unit++)
+            for (int r = 0; r < size; r++)
             {
-                for (int num = 1; num <= size; num++)
+                for (int c = 0; c < size; c++)
                 {
-                    var unitCells = GetUnitCells(unit, subgridSize, size);
-                    var possibleCells = unitCells.Where(cell => candidates[cell.Item1, cell.Item2]?.Contains(num) == true).ToList();
+                    if (board[r, c] != 0) continue;
 
-                    if (possibleCells.Count == 1)
+                    int subgridIndex = GetSubgridIndex(r, c, (int)Math.Sqrt(size));
+                    int availableValues = GetAvailableValues(rows[r], cols[c], subgrids[subgridIndex], size);
+                    int numCandidates = CountBits(availableValues);
+
+                    if (numCandidates < minCandidates)
                     {
-                        var (row, col) = possibleCells[0];
-                        board[row, col] = num;
-                        UpdateCandidates(candidates, board, row, col, num);
-                        progress = true;
+                        minCandidates = numCandidates;
+                        bestCell = (r, c);
+
+                        if (numCandidates == 1) return bestCell;
                     }
                 }
             }
 
-            return progress;
+            return bestCell;
         }
 
-        private bool ApplyNakedPairs(List<int>[,] candidates, int size)
+        private int GetAvailableValues(int rowMask, int colMask, int subgridMask, int size)
         {
-            bool progress = false;
-            int subgridSize = (int)Math.Sqrt(size);
+            int usedValues = rowMask | colMask | subgridMask;
+            return ~usedValues & ((1 << size) - 1);
+        }
 
-            for (int unit = 0; unit < size; unit++)
+        private int CountBits(int value)
+        {
+            int count = 0;
+            while (value > 0)
             {
-                var unitCells = GetUnitCells(unit, subgridSize, size);
-                var pairs = unitCells
-                    .Where(cell => candidates[cell.Item1, cell.Item2]?.Count == 2)
-                    .GroupBy(cell => string.Join(",", candidates[cell.Item1, cell.Item2]))
-                    .Where(g => g.Count() == 2);
-
-                foreach (var pair in pairs)
-                {
-                    var pairCandidates = candidates[pair.First().Item1, pair.First().Item2];
-                    foreach (var cell in unitCells.Where(cell => !pair.Contains(cell)))
-                    {
-                        if (candidates[cell.Item1, cell.Item2] != null)
-                        {
-                            pairCandidates.ForEach(c => candidates[cell.Item1, cell.Item2].Remove(c));
-                            progress = true;
-                        }
-                    }
-                }
+                count += value & 1;
+                value >>= 1;
             }
-
-            return progress;
+            return count;
         }
 
-        private bool ApplyLockedCandidates(List<int>[,] candidates, int size)
+        private int GetSubgridIndex(int row, int col, int subgridSize)
         {
-            bool progress = false;
-            int subgridSize = (int)Math.Sqrt(size);
-
-            for (int unit = 0; unit < size; unit++)
-            {
-                var unitCells = GetUnitCells(unit, subgridSize, size);
-                var candidateOccurrences = new Dictionary<int, List<(int, int)>>();
-
-                foreach (var cell in unitCells)
-                {
-                    if (candidates[cell.Item1, cell.Item2] != null)
-                    {
-                        foreach (var candidate in candidates[cell.Item1, cell.Item2])
-                        {
-                            if (!candidateOccurrences.ContainsKey(candidate))
-                                candidateOccurrences[candidate] = new List<(int, int)>();
-                            candidateOccurrences[candidate].Add(cell);
-                        }
-                    }
-                }
-
-                foreach (var kvp in candidateOccurrences)
-                {
-                    if (kvp.Value.All(c => c.Item1 == kvp.Value[0].Item1))
-                    {
-                        int lockedRow = kvp.Value[0].Item1;
-                        foreach (var cell in GetRowCells(lockedRow, size).Except(unitCells))
-                        {
-                            if (candidates[cell.Item1, cell.Item2]?.Remove(kvp.Key) == true)
-                                progress = true;
-                        }
-                    }
-
-                    if (kvp.Value.All(c => c.Item2 == kvp.Value[0].Item2))
-                    {
-                        int lockedCol = kvp.Value[0].Item2;
-                        foreach (var cell in GetColCells(lockedCol, size).Except(unitCells))
-                        {
-                            if (candidates[cell.Item1, cell.Item2]?.Remove(kvp.Key) == true)
-                                progress = true;
-                        }
-                    }
-                }
-            }
-
-            return progress;
-        }
-
-        private bool ApplyHiddenTriplesQuads(List<int>[,] candidates, int size)
-        {
-            return ApplyHiddenSubset(candidates, size, 3) || ApplyHiddenSubset(candidates, size, 4);
-        }
-
-        private bool ApplyHiddenSubset(List<int>[,] candidates, int size, int subsetSize)
-        {
-            bool progress = false;
-            int subgridSize = (int)Math.Sqrt(size);
-
-            for (int unit = 0; unit < size; unit++)
-            {
-                var unitCells = GetUnitCells(unit, subgridSize, size);
-                var candidateOccurrences = new Dictionary<int, List<(int, int)>>();
-
-                foreach (var cell in unitCells)
-                {
-                    if (candidates[cell.Item1, cell.Item2] != null)
-                    {
-                        foreach (var candidate in candidates[cell.Item1, cell.Item2])
-                        {
-                            if (!candidateOccurrences.ContainsKey(candidate))
-                                candidateOccurrences[candidate] = new List<(int, int)>();
-                            candidateOccurrences[candidate].Add(cell);
-                        }
-                    }
-                }
-
-                var subsets = GetCombinations(candidateOccurrences.Keys.ToList(), subsetSize);
-
-                foreach (var subset in subsets)
-                {
-                    var subsetCells = subset.SelectMany(c => candidateOccurrences[c]).Distinct().ToList();
-
-                    if (subsetCells.Count == subsetSize)
-                    {
-                        foreach (var cell in subsetCells)
-                        {
-                            candidates[cell.Item1, cell.Item2].RemoveAll(c => !subset.Contains(c));
-                            progress = true;
-                        }
-                    }
-                }
-            }
-
-            return progress;
-        }
-
-        private IEnumerable<(int, int)> GetUnitCells(int unit, int subgridSize, int size)
-        {
-            int startRow = (unit / subgridSize) * subgridSize;
-            int startCol = (unit % subgridSize) * subgridSize;
-
-            for (int row = 0; row < subgridSize; row++)
-            {
-                for (int col = 0; col < subgridSize; col++)
-                {
-                    yield return (startRow + row, startCol + col);
-                }
-            }
-        }
-
-        private IEnumerable<(int, int)> GetRowCells(int row, int size)
-        {
-            for (int col = 0; col < size; col++)
-                yield return (row, col);
-        }
-
-        private IEnumerable<(int, int)> GetColCells(int col, int size)
-        {
-            for (int row = 0; row < size; row++)
-                yield return (row, col);
-        }
-
-        private void UpdateCandidates(List<int>[,] candidates, int[,] board, int row, int col, int value)
-        {
-            int size = board.GetLength(0);
-            int subgridSize = (int)Math.Sqrt(size);
-
-            for (int i = 0; i < size; i++)
-            {
-                candidates[row, i]?.Remove(value);
-                candidates[i, col]?.Remove(value);
-            }
-
-            int startRow = (row / subgridSize) * subgridSize;
-            int startCol = (col / subgridSize) * subgridSize;
-
-            for (int r = startRow; r < startRow + subgridSize; r++)
-            {
-                for (int c = startCol; c < startCol + subgridSize; c++)
-                {
-                    candidates[r, c]?.Remove(value);
-                }
-            }
-
-            candidates[row, col] = null;
-        }
-
-        public static IEnumerable<List<T>> GetCombinations<T>(List<T> list, int length)
-        {
-            if (length == 0) return new List<List<T>> { new List<T>() };
-
-            return list.SelectMany((item, index) =>
-                GetCombinations(list.Skip(index + 1).ToList(), length - 1)
-                    .Select(combination => new List<T> { item }.Concat(combination).ToList()));
+            return (row / subgridSize) * subgridSize + (col / subgridSize);
         }
     }
 }

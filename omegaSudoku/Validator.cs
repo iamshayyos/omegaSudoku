@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace omegaSudoku
 {
@@ -17,7 +18,7 @@ namespace omegaSudoku
         {
             for (int i = 0; i < size; i++)
             {
-                if (!IsRowValid(board, i, size) || !IsColumnValid(board, i, size))
+                if (!IsUnitValid(board, size, i, true) || !IsUnitValid(board, size, i, false))
                 {
                     return false;
                 }
@@ -38,31 +39,15 @@ namespace omegaSudoku
             return true;
         }
 
-        private bool IsRowValid(int[,] board, int row, int size)
+        private bool IsUnitValid(int[,] board, int size, int index, bool isRow)
         {
-            bool[] seen = new bool[size + 1];
-            for (int col = 0; col < size; col++)
+            HashSet<int> seen = new HashSet<int>();
+            for (int i = 0; i < size; i++)
             {
-                int num = board[row, col];
-                if (num != 0)
+                int num = isRow ? board[index, i] : board[i, index];
+                if (num != 0 && !seen.Add(num))
                 {
-                    if (seen[num]) return false;
-                    seen[num] = true;
-                }
-            }
-            return true;
-        }
-
-        private bool IsColumnValid(int[,] board, int col, int size)
-        {
-            bool[] seen = new bool[size + 1];
-            for (int row = 0; row < size; row++)
-            {
-                int num = board[row, col];
-                if (num != 0)
-                {
-                    if (seen[num]) return false;
-                    seen[num] = true;
+                    return false;
                 }
             }
             return true;
@@ -70,16 +55,15 @@ namespace omegaSudoku
 
         private bool IsSubgridValid(int[,] board, int startRow, int startCol, int subgridSize)
         {
-            bool[] seen = new bool[subgridSize * subgridSize + 1];
+            HashSet<int> seen = new HashSet<int>();
             for (int row = 0; row < subgridSize; row++)
             {
                 for (int col = 0; col < subgridSize; col++)
                 {
                     int num = board[startRow + row, startCol + col];
-                    if (num != 0)
+                    if (num != 0 && !seen.Add(num))
                     {
-                        if (seen[num]) return false;
-                        seen[num] = true;
+                        return false;
                     }
                 }
             }
@@ -95,42 +79,50 @@ namespace omegaSudoku
                     int num = board[row, col];
                     if (num != 0)
                     {
-                        board[row, col] = 0; 
-                        if (!IsValidMove(board, row, col, num, size))
+                        board[row, col] = 0;
+                        if (!IsMoveValid(board, row, col, num, size))
                         {
-                            board[row, col] = num; 
+                            board[row, col] = num;
                             return false;
                         }
-                        board[row, col] = num; 
+                        board[row, col] = num;
                     }
                 }
             }
             return true;
         }
 
-        private bool IsValidMove(int[,] board, int row, int col, int num, int size)
+        private bool IsMoveValid(int[,] board, int row, int col, int num, int size)
         {
-            for (int i = 0; i < size; i++)
-            {
-                if (board[row, i] == num || board[i, col] == num)
-                    return false;
-            }
+            return IsUnitValidWithNum(board, row, col, num, true) &&
+                   IsUnitValidWithNum(board, row, col, num, false) &&
+                   IsSubgridValidWithNum(board, row, col, num, size);
+        }
 
+        private bool IsUnitValidWithNum(int[,] board, int row, int col, int num, bool isRow)
+        {
+            for (int i = 0; i < board.GetLength(0); i++)
+            {
+                int value = isRow ? board[row, i] : board[i, col];
+                if (value == num) return false;
+            }
+            return true;
+        }
+
+        private bool IsSubgridValidWithNum(int[,] board, int row, int col, int num, int size)
+        {
             int subgridSize = (int)Math.Sqrt(size);
-            int startRow = row / subgridSize * subgridSize;
-            int startCol = col / subgridSize * subgridSize;
+            int startRow = (row / subgridSize) * subgridSize;
+            int startCol = (col / subgridSize) * subgridSize;
 
             for (int r = startRow; r < startRow + subgridSize; r++)
             {
                 for (int c = startCol; c < startCol + subgridSize; c++)
                 {
-                    if (board[r, c] == num)
-                        return false;
+                    if (board[r, c] == num) return false;
                 }
             }
             return true;
         }
-
-
     }
 }
