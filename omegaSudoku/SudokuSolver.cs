@@ -13,7 +13,7 @@ namespace omegaSudoku
 
             InitializeBitmasks(board, size, rows, cols, subgrids);
 
-            return BacktrackWithHeuristics(board, size, rows, cols, subgrids);
+            return BacktrackWithOptimizations(board, size, rows, cols, subgrids);
         }
 
         private void InitializeBitmasks(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
@@ -35,7 +35,7 @@ namespace omegaSudoku
             }
         }
 
-        private bool BacktrackWithHeuristics(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
+        private bool BacktrackWithOptimizations(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
         {
             (int row, int col)? nextCell = GetCellWithFewestCandidates(board, size, rows, cols, subgrids);
 
@@ -56,7 +56,7 @@ namespace omegaSudoku
                     cols[colIndex] |= (1 << (bit - 1));
                     subgrids[subgridIndex] |= (1 << (bit - 1));
 
-                    if (BacktrackWithHeuristics(board, size, rows, cols, subgrids))
+                    if (BacktrackWithOptimizations(board, size, rows, cols, subgrids))
                         return true;
 
                     board[rowIndex, colIndex] = 0;
@@ -89,7 +89,7 @@ namespace omegaSudoku
                         minCandidates = numCandidates;
                         bestCell = (r, c);
 
-                        if (numCandidates == 1) return bestCell;
+                        if (minCandidates == 1) return bestCell;
                     }
                 }
             }
