@@ -7,7 +7,7 @@ namespace omegaSudoku
         static void Main(string[] args)
         {
             IOHandler ioHandler = new IOHandler();
-            ioHandler.Run(); 
+            ioHandler.Run();
         }
     }
 }

@@ -1,114 +1,117 @@
-﻿using System;
+﻿using omegaSudoku;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using System;
 
-namespace omegaSudoku
+public class IOHandler
 {
-    public class IOHandler
+    private Validator _validator;
+    private ISudokuSolver _solver;
+
+    public IOHandler()
     {
-        private Validator _validator;
-        private SudokuSolver _solver;
+        _validator = new Validator();
 
-        public IOHandler()
+        // אפשר להחליף ל-SudokuSolver ישן אם רוצים בלי היוריסטיקות
+        // אבל לפי הדרישה – נשתמש ב-SudokuSolverWithHeuristics
+        _solver = new SudokuSolverWithHeuristics();
+    }
+
+    public void Run()
+    {
+        Console.WriteLine("Welcome to Omega Sudoku!");
+        Console.WriteLine("Enter 'end' to exit the game.");
+
+        while (true)
         {
-            _validator = new Validator();
-            _solver = new SudokuSolver();
-        }
+            string input = GetInput();
 
-        public void Run()
-        {
-            Console.WriteLine("Welcome to Omega Sudoku!");
-            Console.WriteLine("Enter 'end' to exit the game.");
-
-            while (true)
+            if (input == null) return;  
+            if (input.ToLower() == "end")
             {
-                string input = GetInput();
+                Console.WriteLine("Exiting the program. Goodbye!");
+                break;
+            }
 
-                if (input.ToLower() == "end")
-                {
-                    Console.WriteLine("Exiting the program. Goodbye!");
-                    break;
-                }
+            if (!_validator.IsValidFormat(input))
+            {
+                PrintMessage("Invalid input format. Make sure the input is a square (N*N) with N in [4..25].");
+                continue;
+            }
 
-                if (!_validator.IsValidFormat(input))
-                {
-                    PrintMessage("Invalid input format. Make sure the input represents a valid Sudoku board.");
-                    continue;
-                }
+            int boardSize = (int)Math.Sqrt(input.Length);
+            SudokuBoard board = new SudokuBoard(input, boardSize);
 
-                int boardSize = (int)Math.Sqrt(input.Length);
-                SudokuBoard board = new SudokuBoard(input, boardSize);
+            if (!_validator.IsBoardValid(board.Board, boardSize))
+            {
+                PrintMessage("The Sudoku board is invalid (conflicting values). Please try again.");
+                continue;
+            }
 
-                if (!_validator.IsBoardValid(board.Board, boardSize))
-                {
-                    PrintMessage("The Sudoku board is invalid and cannot be solved. Please try again.");
-                    continue;
-                }
+            if (!_validator.IsSolvable(board.Board, boardSize))
+            {
+                PrintMessage("The Sudoku board has no solution (immediate contradiction). Try again.");
+                continue;
+            }
 
-                if (!_validator.IsSolvable(board.Board, boardSize))
-                {
-                    PrintMessage("The Sudoku board is not solvable. Please try again.");
-                    continue;
-                }
+            PrintMessage("Initial Sudoku board:");
+            board.PrintBoard();
 
-                PrintMessage("Initial Sudoku board:");
+            var stopwatch = Stopwatch.StartNew();
+            bool isSolved;
+
+            try
+            {
+                TimeSpan timeout = boardSize == 25 ? TimeSpan.FromSeconds(10) : TimeSpan.FromSeconds(10);
+
+                isSolved = SolveWithTimeout(board, boardSize, timeout);
+            }
+            catch (TimeoutException)
+            {
+                PrintMessage("The Sudoku board took too long to solve and is considered unsolvable for now.");
+                continue;
+            }
+
+            stopwatch.Stop();
+
+            if (isSolved)
+            {
+                PrintMessage("Solved Sudoku board:");
                 board.PrintBoard();
-
-                Stopwatch stopwatch = Stopwatch.StartNew();
-                bool isSolved;
-
-                try
-                {
-                    isSolved = SolveWithTimeout(board, boardSize, TimeSpan.FromSeconds(3000));
-                }
-                catch (TimeoutException)
-                {
-                    PrintMessage("The Sudoku board took too long to solve and is considered unsolvable.");
-                    continue;
-                }
-
-                stopwatch.Stop();
-
-                if (isSolved)
-                {
-                    PrintMessage("Solved Sudoku board:");
-                    board.PrintBoard();
-                    PrintMessage($"Time taken to solve: {stopwatch.ElapsedMilliseconds} ms");
-                }
-                else
-                {
-                    PrintMessage("This Sudoku board is unsolvable.");
-                }
+                PrintMessage($"Time taken to solve: {stopwatch.ElapsedMilliseconds} ms");
+            }
+            else
+            {
+                PrintMessage("This Sudoku board is unsolvable or timed out.");
             }
         }
+    }
 
+    private string GetInput()
+    {
+        Console.WriteLine("\nEnter the Sudoku board as a single string (or 'end' to exit):");
+        return Console.ReadLine();
+    }
 
-        private string GetInput()
+    private void PrintMessage(string message)
+    {
+        Console.WriteLine(message);
+    }
+
+    private bool SolveWithTimeout(SudokuBoard board, int boardSize, TimeSpan timeout)
+    {
+        bool isSolved = false;
+
+        Task solveTask = Task.Run(() =>
         {
-            Console.WriteLine("\nEnter the Sudoku board as a single string (or 'end' to exit):");
-            return Console.ReadLine();
+            isSolved = _solver.Solve(board.Board, boardSize);
+        });
+
+        if (!solveTask.Wait(timeout))
+        {
+            throw new TimeoutException("The solution took too long and was terminated.");
         }
 
-        private void PrintMessage(string message)
-        {
-            Console.WriteLine(message);
-        }
-
-        private bool SolveWithTimeout(SudokuBoard board, int boardSize, TimeSpan timeout)
-        {
-            bool isSolved = false;
-
-            Task solveTask = Task.Run(() =>
-            {
-                isSolved = _solver.Solve(board.Board, boardSize);
-            });
-
-            if (!solveTask.Wait(timeout))
-            {
-                throw new TimeoutException("The solution took too long and was terminated.");
-            }
-
-            return isSolved;
-        }
+        return isSolved;
     }
 }

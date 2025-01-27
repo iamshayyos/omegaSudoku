@@ -3,120 +3,174 @@ using System.Collections.Generic;
 
 namespace omegaSudoku
 {
-    public class SudokuSolver
+   
+    public class SudokuSolver : ISudokuSolver
     {
+        private int _size;
+        private int _subSize;
+
+        private int[] rowUsed;
+        private int[] colUsed;
+        private int[] boxUsed;
+        private int fullMask;
+
+        private List<(int row, int col)> emptyCells;
+        private int[,] _board;
+
         public bool Solve(int[,] board, int size)
         {
-            var rows = new int[size];
-            var cols = new int[size];
-            var subgrids = new int[size];
+            _board = board;
+            _size = size;
+            _subSize = (int)Math.Sqrt(size);
 
-            InitializeBitmasks(board, size, rows, cols, subgrids);
+            rowUsed = new int[size];
+            colUsed = new int[size];
+            boxUsed = new int[size];
 
-            return BacktrackWithOptimizations(board, size, rows, cols, subgrids);
+            fullMask = (1 << size) - 1;
+            emptyCells = new List<(int, int)>();
+
+            if (!InitializeMasks()) return false;
+            BuildEmptyCellsList();
+
+            return Backtrack();
         }
 
-        private void InitializeBitmasks(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
+        //initialize the masks for the values that are already written on the board
+        //if there is a conflict, return false
+        private bool InitializeMasks()
         {
-            int subgridSize = (int)Math.Sqrt(size);
-            for (int r = 0; r < size; r++)
+            for (int r = 0; r < _size; r++)
             {
-                for (int c = 0; c < size; c++)
+                for (int c = 0; c < _size; c++)
                 {
-                    int value = board[r, c];
-                    if (value != 0)
+                    int val = _board[r, c];
+                    if (val != 0)
                     {
-                        int bit = 1 << (value - 1);
-                        rows[r] |= bit;
-                        cols[c] |= bit;
-                        subgrids[GetSubgridIndex(r, c, subgridSize)] |= bit;
+                        int bit = 1 << (val - 1);
+                        int boxIndex = GetBoxIndex(r, c);
+
+                        if ((rowUsed[r] & bit) != 0) return false;
+                        if ((colUsed[c] & bit) != 0) return false;
+                        if ((boxUsed[boxIndex] & bit) != 0) return false;
+
+                        rowUsed[r] |= bit;
+                        colUsed[c] |= bit;
+                        boxUsed[boxIndex] |= bit;
+                    }
+                }
+            }
+            return true;
+        }
+
+        private void BuildEmptyCellsList()
+        {
+            for (int r = 0; r < _size; r++)
+            {
+                for (int c = 0; c < _size; c++)
+                {
+                    if (_board[r, c] == 0)
+                    {
+                        emptyCells.Add((r, c));
                     }
                 }
             }
         }
 
-        private bool BacktrackWithOptimizations(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
+        private bool Backtrack()
         {
-            (int row, int col)? nextCell = GetCellWithFewestCandidates(board, size, rows, cols, subgrids);
-
-            if (nextCell == null) return true;
-
-            int rowIndex = nextCell.Value.row;
-            int colIndex = nextCell.Value.col;
-            int subgridIndex = GetSubgridIndex(rowIndex, colIndex, (int)Math.Sqrt(size));
-
-            int availableValues = GetAvailableValues(rows[rowIndex], cols[colIndex], subgrids[subgridIndex], size);
-
-            for (int bit = 1; bit <= size; bit++)
+            //if there are no empty cells, the board is full return true
+            if (emptyCells.Count == 0)
             {
-                if ((availableValues & (1 << (bit - 1))) != 0)
+                return true;
+            }
+
+            //search for the cell with the least amount of possible values(MRV)
+            int bestIndex = -1;
+            int bestMovesCount = _size + 1;
+
+            for (int i = 0; i < emptyCells.Count; i++)
+            {
+                (int r, int c) = emptyCells[i];
+                int usedBits = rowUsed[r] | colUsed[c] | boxUsed[GetBoxIndex(r, c)];
+                int freeBits = fullMask & ~usedBits;
+                int count = PopCount(freeBits);
+
+                if (count < bestMovesCount)
                 {
-                    board[rowIndex, colIndex] = bit;
-                    rows[rowIndex] |= (1 << (bit - 1));
-                    cols[colIndex] |= (1 << (bit - 1));
-                    subgrids[subgridIndex] |= (1 << (bit - 1));
-
-                    if (BacktrackWithOptimizations(board, size, rows, cols, subgrids))
-                        return true;
-
-                    board[rowIndex, colIndex] = 0;
-                    rows[rowIndex] &= ~(1 << (bit - 1));
-                    cols[colIndex] &= ~(1 << (bit - 1));
-                    subgrids[subgridIndex] &= ~(1 << (bit - 1));
+                    bestMovesCount = count;
+                    bestIndex = i;
+                    if (bestMovesCount <= 1) break;
                 }
             }
 
+            if (bestIndex == -1) return true;
+            if (bestMovesCount == 0) return false;
+
+            //replace the best cell with the last cell in the list for efficient removal
+            (emptyCells[bestIndex], emptyCells[emptyCells.Count - 1]) =
+                (emptyCells[emptyCells.Count - 1], emptyCells[bestIndex]);
+
+            var cell = emptyCells[emptyCells.Count - 1];
+            emptyCells.RemoveAt(emptyCells.Count - 1);
+
+            int row = cell.row;
+            int col = cell.col;
+            int used = rowUsed[row] | colUsed[col] | boxUsed[GetBoxIndex(row, col)];
+            int candidates = fullMask & ~used;
+
+            while (candidates != 0)
+            {
+                int bit = candidates & (-candidates);
+                candidates &= (candidates - 1);
+
+                int val = BitToValue(bit);
+                //insert the value to the board
+                _board[row, col] = val;
+                rowUsed[row] |= bit;
+                colUsed[col] |= bit;
+                boxUsed[GetBoxIndex(row, col)] |= bit;
+
+                if (Backtrack()) return true;
+
+                //remove the value from the board
+                _board[row, col] = 0;
+                rowUsed[row] &= ~bit;
+                colUsed[col] &= ~bit;
+                boxUsed[GetBoxIndex(row, col)] &= ~bit;
+            }
+
+            //insert the cell back to the list
+            emptyCells.Add(cell);
             return false;
         }
 
-        private (int, int)? GetCellWithFewestCandidates(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
+        private int GetBoxIndex(int row, int col)
         {
-            int minCandidates = int.MaxValue;
-            (int, int)? bestCell = null;
+            return (row / _subSize) * _subSize + (col / _subSize);
+        }
 
-            for (int r = 0; r < size; r++)
+        private int BitToValue(int bit)
+        {
+            int val = 0;
+            while (bit > 0)
             {
-                for (int c = 0; c < size; c++)
-                {
-                    if (board[r, c] != 0) continue;
-
-                    int subgridIndex = GetSubgridIndex(r, c, (int)Math.Sqrt(size));
-                    int availableValues = GetAvailableValues(rows[r], cols[c], subgrids[subgridIndex], size);
-                    int numCandidates = CountBits(availableValues);
-
-                    if (numCandidates < minCandidates)
-                    {
-                        minCandidates = numCandidates;
-                        bestCell = (r, c);
-
-                        if (minCandidates == 1) return bestCell;
-                    }
-                }
+                bit >>= 1;
+                val++;
             }
-
-            return bestCell;
+            return val;
         }
 
-        private int GetAvailableValues(int rowMask, int colMask, int subgridMask, int size)
+        private int PopCount(int x)
         {
-            int usedValues = rowMask | colMask | subgridMask;
-            return ~usedValues & ((1 << size) - 1);
-        }
-
-        private int CountBits(int value)
-        {
+            //x counts the number of bits that are on
             int count = 0;
-            while (value > 0)
+            while (x != 0)
             {
-                count += value & 1;
-                value >>= 1;
+                x &= (x - 1);
+                count++;
             }
             return count;
-        }
-
-        private int GetSubgridIndex(int row, int col, int subgridSize)
-        {
-            return (row / subgridSize) * subgridSize + (col / subgridSize);
         }
     }
 }
