@@ -1,5 +1,4 @@
-﻿using omegaSudoku;
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
@@ -24,7 +23,8 @@ namespace omegaSudoku
             while (true)
             {
                 string input = GetInput();
-                if (input == null) return;
+                if (input == null)
+                    return;
                 if (input.Trim().ToLower() == "end")
                 {
                     Console.WriteLine("Exiting the program. Goodbye!");
@@ -33,11 +33,11 @@ namespace omegaSudoku
 
                 if (!_validator.IsValidFormat(input, out int boardSize))
                 {
-                    PrintMessage("Invalid input format. Make sure the input is a square (N*N) with N in [1..25].");
+                    PrintMessage("Invalid input format. Ensure the input represents a square board (N*N) with N in [1..25].");
                     continue;
                 }
 
-                //create board
+                // Create the board.
                 SudokuBoard board = new SudokuBoard(input, boardSize);
 
                 if (!_validator.IsBoardValid(board, boardSize))

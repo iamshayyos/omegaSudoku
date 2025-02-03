@@ -11,7 +11,7 @@ namespace OmegaSudoku
             ISudokuSolver solver = new SudokuSolver(new IHeuristic[]
             {
                 new SingleCandidateHeuristic(),
-                // new HiddenSingleHeuristic()
+                new HiddenSingleHeuristic()
             });
 
             IOHandler ioHandler = new IOHandler(solver, validator);

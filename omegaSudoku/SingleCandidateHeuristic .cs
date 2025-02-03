@@ -1,8 +1,8 @@
 ﻿using omegaSudoku;
 using System;
-using System.Numerics; 
+using System.Numerics;
 
-namespace OmegaSudoku
+namespace omegaSudoku
 {
     public class SingleCandidateHeuristic : IHeuristic
     {
@@ -17,11 +17,11 @@ namespace OmegaSudoku
                     {
                         int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
                         int possible = state.FullMask & ~used;
-                        // If there is exactly one option, we will set it
+                        // If there is exactly one candidate, fill it in.
                         if (possible != 0 && (possible & (possible - 1)) == 0)
                         {
                             int bit = possible;
-                            int val = BitUtils.PopCount(possible);
+                            int val = BitOperations.TrailingZeroCount((uint)possible) + 1;
                             board.Board[r, c] = val;
                             state.RowUsed[r] |= bit;
                             state.ColUsed[c] |= bit;

@@ -1,8 +1,7 @@
-﻿using omegaSudoku;
-using System;
+﻿using System;
 using System.Collections.Generic;
 
-namespace OmegaSudoku
+namespace omegaSudoku
 {
     public class Validator : IValidator
     {
@@ -19,7 +18,7 @@ namespace OmegaSudoku
 
         public bool IsBoardValid(SudokuBoard board, int size)
         {
-            // Checking rows and columns
+            // Check rows and columns.
             for (int i = 0; i < size; i++)
             {
                 if (!IsUnitValid(board, size, i, true) || !IsUnitValid(board, size, i, false))
@@ -50,7 +49,8 @@ namespace OmegaSudoku
                 int num = isRow ? board.Board[index, i] : board.Board[i, index];
                 if (num != 0)
                 {
-                    if (!seen.Add(num)) return false;
+                    if (!seen.Add(num))
+                        return false;
                 }
             }
             return true;
@@ -75,7 +75,7 @@ namespace OmegaSudoku
 
         public bool IsSolvable(SudokuBoard board, int size)
         {
-            // For each existing value, we will check that it does not conflict with other options.
+            // For each non-zero cell, check that its value can be legally placed.
             for (int row = 0; row < size; row++)
             {
                 for (int col = 0; col < size; col++)

@@ -1,12 +1,10 @@
-﻿using omegaSudoku;
-
-namespace omegaSudoku
+﻿namespace omegaSudoku
 {
     public interface IHeuristic
     {
         /// <summary>
-        /// Trying to apply the heuristic to the board and the current state of the solution.
-        /// Returns true if changes have been made.
+        /// Attempts to apply the heuristic to the board and the current solver state.
+        /// Returns true if any changes were made.
         /// </summary>
         bool Apply(SudokuBoard board, SolverState state);
     }

@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using omegaSudoku;
+using System;
 using System.Numerics;
-using System.Linq;
-using omegaSudoku;
 
-namespace OmegaSudoku
+namespace omegaSudoku
 {
     public class SudokuSolver : ISudokuSolver
     {
@@ -20,15 +18,13 @@ namespace OmegaSudoku
             int size = board.Size;
             SolverState state = new SolverState(size);
 
-            // Initialize the masks and empty board cells
+            // Initialize masks based on the board values.
             if (!InitializeState(board, state))
             {
                 return false;
             }
 
-            BuildEmptyCellsList(board, state);
-
-            // Apply heuristics until no changes are made
+            // Apply heuristics (constraint propagation) until no further progress can be made.
             bool progress;
             do
             {
@@ -38,13 +34,12 @@ namespace OmegaSudoku
                     if (heuristic.Apply(board, state))
                     {
                         progress = true;
-                        // Update the list of empty cells after each change
-                        BuildEmptyCellsList(board, state);
                     }
                 }
             } while (progress);
-            // Search with Backtracking
-            return Backtrack(board, state);
+
+            // Begin backtracking with optimized cell selection (MRV).
+            return BacktrackOptimized(board, state);
         }
 
         private bool InitializeState(SudokuBoard board, SolverState state)
@@ -58,11 +53,12 @@ namespace OmegaSudoku
                     {
                         int bit = 1 << (val - 1);
                         int boxIndex = state.GetBoxIndex(r, c);
+                        // Check if the value is already used in the row, column, or box.
                         if ((state.RowUsed[r] & bit) != 0 ||
                             (state.ColUsed[c] & bit) != 0 ||
                             (state.BoxUsed[boxIndex] & bit) != 0)
                         {
-                            return false; 
+                            return false; // Conflict detected.
                         }
                         state.RowUsed[r] |= bit;
                         state.ColUsed[c] |= bit;
@@ -73,9 +69,16 @@ namespace OmegaSudoku
             return true;
         }
 
-        private void BuildEmptyCellsList(SudokuBoard board, SolverState state)
+        /// <summary>
+        /// Optimized backtracking using the MRV heuristic: selects the empty cell with the fewest candidate numbers.
+        /// </summary>
+        private bool BacktrackOptimized(SudokuBoard board, SolverState state)
         {
-            state.EmptyCells.Clear();
+            int bestRow = -1, bestCol = -1;
+            int bestCandidateCount = int.MaxValue;
+            int bestCandidates = 0;
+
+            // Find the empty cell with the minimum number of candidates.
             for (int r = 0; r < state.Size; r++)
             {
                 for (int c = 0; c < state.Size; c++)
@@ -83,55 +86,50 @@ namespace OmegaSudoku
                     if (board.Board[r, c] == 0)
                     {
                         int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
-                        int possible = state.FullMask & ~used;
-                        int options = BitUtils.PopCount(possible);
-                        state.EmptyCells.Add(new Cell(r, c, options));
+                        int candidates = state.FullMask & ~used;
+                        int count = BitOperations.PopCount((uint)candidates);
+                        if (count == 0)
+                            return false; // No candidates available; backtrack.
+                        if (count < bestCandidateCount)
+                        {
+                            bestCandidateCount = count;
+                            bestCandidates = candidates;
+                            bestRow = r;
+                            bestCol = c;
+                            if (count == 1) // Optimal: only one candidate.
+                                break;
+                        }
                     }
                 }
             }
-            // Sort by how many options each cell has (MRV heuristic)
-            state.EmptyCells.Sort((a, b) => a.Options.CompareTo(b.Options));
-        }
 
-        private bool Backtrack(SudokuBoard board, SolverState state)
-        {
-            if (state.EmptyCells.Count == 0)
+            // If no empty cell is found, the board is solved.
+            if (bestRow == -1)
                 return true;
 
-            // Select the cell with the fewest possible choices (MRV)
-            Cell cell = state.EmptyCells[0];
-            state.EmptyCells.RemoveAt(0);
-
-            int r = cell.Row;
-            int c = cell.Col;
-            int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
-            int candidates = state.FullMask & ~used;
-
-            while (candidates != 0)
+            // Try each candidate for the selected cell.
+            while (bestCandidates != 0)
             {
-                int bit = candidates & -candidates; // Choose the lowest bit
-                candidates &= candidates - 1;
-                int val = BitUtils.TrailingZeroCount(bit) + 1;
+                int bit = bestCandidates & -bestCandidates; // Get the lowest set bit.
+                bestCandidates -= bit;
+                int val = BitOperations.TrailingZeroCount((uint)bit) + 1;
 
-                board.Board[r, c] = val;
-                //Update masks
-                state.RowUsed[r] |= bit;
-                state.ColUsed[c] |= bit;
-                state.BoxUsed[state.GetBoxIndex(r, c)] |= bit;
-                // Backup the list of empty cells for fallback in case of failure
-                var backupEmptyCells = new List<Cell>(state.EmptyCells);
-                if (Backtrack(board, state))
+                // Assign the candidate and update masks.
+                board.Board[bestRow, bestCol] = val;
+                state.RowUsed[bestRow] |= bit;
+                state.ColUsed[bestCol] |= bit;
+                state.BoxUsed[state.GetBoxIndex(bestRow, bestCol)] |= bit;
+
+                if (BacktrackOptimized(board, state))
                     return true;
-                // Go back – cancel changes
-                board.Board[r, c] = 0;
-                state.RowUsed[r] &= ~bit;
-                state.ColUsed[c] &= ~bit;
-                state.BoxUsed[state.GetBoxIndex(r, c)] &= ~bit;
-                state.EmptyCells = backupEmptyCells;
+
+                // Undo the assignment (backtracking).
+                board.Board[bestRow, bestCol] = 0;
+                state.RowUsed[bestRow] &= ~bit;
+                state.ColUsed[bestCol] &= ~bit;
+                state.BoxUsed[state.GetBoxIndex(bestRow, bestCol)] &= ~bit;
             }
 
-            // Return the cell to the list in case you need to try more options
-            state.EmptyCells.Insert(0, cell);
             return false;
         }
     }
