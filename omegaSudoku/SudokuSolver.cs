@@ -1,122 +1,138 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Numerics;
+using System.Linq;
+using omegaSudoku;
 
-namespace omegaSudoku
+namespace OmegaSudoku
 {
-    public class SudokuSolver
+    public class SudokuSolver : ISudokuSolver
     {
-        public bool Solve(int[,] board, int size)
+        private readonly IHeuristic[] _heuristics;
+
+        public SudokuSolver(IHeuristic[] heuristics)
         {
-            var rows = new int[size];
-            var cols = new int[size];
-            var subgrids = new int[size];
-
-            InitializeBitmasks(board, size, rows, cols, subgrids);
-
-            return BacktrackWithOptimizations(board, size, rows, cols, subgrids);
+            _heuristics = heuristics;
         }
 
-        private void InitializeBitmasks(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
+        public bool Solve(SudokuBoard board)
         {
-            int subgridSize = (int)Math.Sqrt(size);
-            for (int r = 0; r < size; r++)
+            int size = board.Size;
+            SolverState state = new SolverState(size);
+
+            // Initialize the masks and empty board cells
+            if (!InitializeState(board, state))
             {
-                for (int c = 0; c < size; c++)
+                return false;
+            }
+
+            BuildEmptyCellsList(board, state);
+
+            // Apply heuristics until no changes are made
+            bool progress;
+            do
+            {
+                progress = false;
+                foreach (var heuristic in _heuristics)
                 {
-                    int value = board[r, c];
-                    if (value != 0)
+                    if (heuristic.Apply(board, state))
                     {
-                        int bit = 1 << (value - 1);
-                        rows[r] |= bit;
-                        cols[c] |= bit;
-                        subgrids[GetSubgridIndex(r, c, subgridSize)] |= bit;
+                        progress = true;
+                        // Update the list of empty cells after each change
+                        BuildEmptyCellsList(board, state);
+                    }
+                }
+            } while (progress);
+            // Search with Backtracking
+            return Backtrack(board, state);
+        }
+
+        private bool InitializeState(SudokuBoard board, SolverState state)
+        {
+            for (int r = 0; r < state.Size; r++)
+            {
+                for (int c = 0; c < state.Size; c++)
+                {
+                    int val = board.Board[r, c];
+                    if (val != 0)
+                    {
+                        int bit = 1 << (val - 1);
+                        int boxIndex = state.GetBoxIndex(r, c);
+                        if ((state.RowUsed[r] & bit) != 0 ||
+                            (state.ColUsed[c] & bit) != 0 ||
+                            (state.BoxUsed[boxIndex] & bit) != 0)
+                        {
+                            return false; 
+                        }
+                        state.RowUsed[r] |= bit;
+                        state.ColUsed[c] |= bit;
+                        state.BoxUsed[boxIndex] |= bit;
                     }
                 }
             }
+            return true;
         }
 
-        private bool BacktrackWithOptimizations(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
+        private void BuildEmptyCellsList(SudokuBoard board, SolverState state)
         {
-            (int row, int col)? nextCell = GetCellWithFewestCandidates(board, size, rows, cols, subgrids);
-
-            if (nextCell == null) return true;
-
-            int rowIndex = nextCell.Value.row;
-            int colIndex = nextCell.Value.col;
-            int subgridIndex = GetSubgridIndex(rowIndex, colIndex, (int)Math.Sqrt(size));
-
-            int availableValues = GetAvailableValues(rows[rowIndex], cols[colIndex], subgrids[subgridIndex], size);
-
-            for (int bit = 1; bit <= size; bit++)
+            state.EmptyCells.Clear();
+            for (int r = 0; r < state.Size; r++)
             {
-                if ((availableValues & (1 << (bit - 1))) != 0)
+                for (int c = 0; c < state.Size; c++)
                 {
-                    board[rowIndex, colIndex] = bit;
-                    rows[rowIndex] |= (1 << (bit - 1));
-                    cols[colIndex] |= (1 << (bit - 1));
-                    subgrids[subgridIndex] |= (1 << (bit - 1));
-
-                    if (BacktrackWithOptimizations(board, size, rows, cols, subgrids))
-                        return true;
-
-                    board[rowIndex, colIndex] = 0;
-                    rows[rowIndex] &= ~(1 << (bit - 1));
-                    cols[colIndex] &= ~(1 << (bit - 1));
-                    subgrids[subgridIndex] &= ~(1 << (bit - 1));
+                    if (board.Board[r, c] == 0)
+                    {
+                        int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
+                        int possible = state.FullMask & ~used;
+                        int options = BitUtils.PopCount(possible);
+                        state.EmptyCells.Add(new Cell(r, c, options));
+                    }
                 }
             }
+            // Sort by how many options each cell has (MRV heuristic)
+            state.EmptyCells.Sort((a, b) => a.Options.CompareTo(b.Options));
+        }
 
+        private bool Backtrack(SudokuBoard board, SolverState state)
+        {
+            if (state.EmptyCells.Count == 0)
+                return true;
+
+            // Select the cell with the fewest possible choices (MRV)
+            Cell cell = state.EmptyCells[0];
+            state.EmptyCells.RemoveAt(0);
+
+            int r = cell.Row;
+            int c = cell.Col;
+            int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
+            int candidates = state.FullMask & ~used;
+
+            while (candidates != 0)
+            {
+                int bit = candidates & -candidates; // Choose the lowest bit
+                candidates &= candidates - 1;
+                int val = BitUtils.TrailingZeroCount(bit) + 1;
+
+                board.Board[r, c] = val;
+                //Update masks
+                state.RowUsed[r] |= bit;
+                state.ColUsed[c] |= bit;
+                state.BoxUsed[state.GetBoxIndex(r, c)] |= bit;
+                // Backup the list of empty cells for fallback in case of failure
+                var backupEmptyCells = new List<Cell>(state.EmptyCells);
+                if (Backtrack(board, state))
+                    return true;
+                // Go back – cancel changes
+                board.Board[r, c] = 0;
+                state.RowUsed[r] &= ~bit;
+                state.ColUsed[c] &= ~bit;
+                state.BoxUsed[state.GetBoxIndex(r, c)] &= ~bit;
+                state.EmptyCells = backupEmptyCells;
+            }
+
+            // Return the cell to the list in case you need to try more options
+            state.EmptyCells.Insert(0, cell);
             return false;
-        }
-
-        private (int, int)? GetCellWithFewestCandidates(int[,] board, int size, int[] rows, int[] cols, int[] subgrids)
-        {
-            int minCandidates = int.MaxValue;
-            (int, int)? bestCell = null;
-
-            for (int r = 0; r < size; r++)
-            {
-                for (int c = 0; c < size; c++)
-                {
-                    if (board[r, c] != 0) continue;
-
-                    int subgridIndex = GetSubgridIndex(r, c, (int)Math.Sqrt(size));
-                    int availableValues = GetAvailableValues(rows[r], cols[c], subgrids[subgridIndex], size);
-                    int numCandidates = CountBits(availableValues);
-
-                    if (numCandidates < minCandidates)
-                    {
-                        minCandidates = numCandidates;
-                        bestCell = (r, c);
-
-                        if (minCandidates == 1) return bestCell;
-                    }
-                }
-            }
-
-            return bestCell;
-        }
-
-        private int GetAvailableValues(int rowMask, int colMask, int subgridMask, int size)
-        {
-            int usedValues = rowMask | colMask | subgridMask;
-            return ~usedValues & ((1 << size) - 1);
-        }
-
-        private int CountBits(int value)
-        {
-            int count = 0;
-            while (value > 0)
-            {
-                count += value & 1;
-                value >>= 1;
-            }
-            return count;
-        }
-
-        private int GetSubgridIndex(int row, int col, int subgridSize)
-        {
-            return (row / subgridSize) * subgridSize + (col / subgridSize);
         }
     }
 }

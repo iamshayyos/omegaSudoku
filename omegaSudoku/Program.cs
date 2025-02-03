@@ -1,13 +1,21 @@
 ﻿using omegaSudoku;
+using System;
 
-namespace omegaSudoku
+namespace OmegaSudoku
 {
     internal class Program
     {
         static void Main(string[] args)
         {
-            IOHandler ioHandler = new IOHandler();
-            ioHandler.Run(); 
+            IValidator validator = new Validator();
+            ISudokuSolver solver = new SudokuSolver(new IHeuristic[]
+            {
+                new SingleCandidateHeuristic(),
+                // new HiddenSingleHeuristic()
+            });
+
+            IOHandler ioHandler = new IOHandler(solver, validator);
+            ioHandler.Run();
         }
     }
 }
