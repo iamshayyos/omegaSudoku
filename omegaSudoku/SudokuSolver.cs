@@ -1,17 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text;
 
 namespace omegaSudoku
 {
     /// <summary>
-    /// The main Sudoku solver class. For 9x9 and 16x16 boards, light heuristics are applied
-    /// followed by standard backtracking. For 25x25 boards, advanced candidate management is used,
-    /// starting with the subgrid (block) with the fewest candidates and selecting cells with high influence.
+    /// The main Sudoku solver class.
+    /// Includes:
+    /// - Light heuristics for 9x9 and 16x16 (SingleCandidate, HiddenSingle, NakedPairs, HiddenPairs, etc.).
+    /// - Advanced subgrid selection for 25x25 with MRV & degree heuristics.
+    /// - Forward checking with fail-fast (zero-candidate check) & missing-number check in each row/col/box.
+    /// - Transposition table to avoid repeated states.
     /// </summary>
     public class SudokuSolver : ISudokuSolver
     {
         private readonly IHeuristic[] _heuristics;
+
+        // Cache of unsolvable states
+        private static HashSet<string> transpositionTable = new HashSet<string>();
 
         public SudokuSolver(IHeuristic[] heuristics)
         {
@@ -23,11 +30,11 @@ namespace omegaSudoku
             int size = board.Size;
             SolverState state = new SolverState(size);
 
-            // Initialize the solver state (update row, column, and box bit masks)
+            // 1. Initialize the solver state (row, column, and box bit masks)
             if (!InitializeState(board, state))
                 return false;
 
-            // For boards up to 16x16 (i.e., 9x9 and 16x16), apply light heuristics then use standard backtracking.
+            // 2. For smaller boards (9x9, 16x16): apply heuristics, then standard backtracking
             if (size <= 16)
             {
                 bool progress;
@@ -37,16 +44,21 @@ namespace omegaSudoku
                     foreach (var heuristic in _heuristics)
                     {
                         if (heuristic.Apply(board, state))
+                        {
+                            // After each heuristic application, run ForwardCheck
+                            if (!ForwardCheck(board, state))
+                                return false; // If forward check fails, no solution
                             progress = true;
+                        }
                     }
                 } while (progress);
 
                 return BacktrackOptimized(board, state);
             }
-            // For 25x25 boards, use advanced candidate management and subgrid selection.
+            // 3. For 25x25 boards: advanced subgrid selection + backtracking
             else if (size == 25)
             {
-                // Step 1: Compute candidate bit masks for each empty cell.
+                // Compute candidates for each empty cell
                 int[,] candidates = new int[size, size];
                 for (int r = 0; r < size; r++)
                 {
@@ -60,11 +72,10 @@ namespace omegaSudoku
                     }
                 }
 
-                // Step 2: Select the subgrid (block) with the lowest average candidate count.
-                // For a 25x25 board, subgrid size is sqrt(25) = 5.
-                int subSize = (int)Math.Sqrt(size); // For 25x25, subSize is 5.
+                // Select subgrid (block) with lowest average candidate count
+                int subSize = (int)Math.Sqrt(size);
                 double bestAverage = double.MaxValue;
-                int bestBr = 0, bestBc = 0; // Coordinates of the top-left cell of the best subgrid.
+                int bestBr = 0, bestBc = 0;
                 for (int br = 0; br < size; br += subSize)
                 {
                     for (int bc = 0; bc < size; bc += subSize)
@@ -86,6 +97,7 @@ namespace omegaSudoku
                         if (emptyCount > 0)
                         {
                             double avg = (double)sumCandidateCount / emptyCount;
+                            // Optionally add more subgrid selection logic here
                             if (avg < bestAverage)
                             {
                                 bestAverage = avg;
@@ -96,7 +108,7 @@ namespace omegaSudoku
                     }
                 }
 
-                // Step 3: Within the chosen subgrid, build a list of empty cells with their candidate count and degree.
+                // Build subgrid cell list
                 List<CellInfo> subgridCells = new List<CellInfo>();
                 for (int r = bestBr; r < bestBr + subSize; r++)
                 {
@@ -104,14 +116,15 @@ namespace omegaSudoku
                     {
                         if (board.Board[r, c] == 0)
                         {
-                            int cand = state.FullMask & ~(state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)]);
+                            int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
+                            int cand = state.FullMask & ~used;
                             int count = BitOperations.PopCount((uint)cand);
                             int degree = CalculateDegree(board, state, r, c);
                             subgridCells.Add(new CellInfo(r, c, cand, count, degree));
                         }
                     }
                 }
-                // Sort cells: first by candidate count (ascending) and then by degree (descending).
+                // Sort by candidateCount (asc), then by degree (desc)
                 subgridCells.Sort((a, b) =>
                 {
                     int cmp = a.CandidateCount.CompareTo(b.CandidateCount);
@@ -120,7 +133,6 @@ namespace omegaSudoku
                     return cmp;
                 });
 
-                // Step 4: Perform backtracking in the selected subgrid; once completed, continue with global backtracking.
                 return BacktrackSubgrid(board, state, subgridCells);
             }
 
@@ -128,8 +140,7 @@ namespace omegaSudoku
         }
 
         /// <summary>
-        /// Initializes the solver state by updating the row, column, and box bit masks based on the board.
-        /// Returns false if a conflict is detected.
+        /// Initializes row, col, and box masks according to current board.
         /// </summary>
         private bool InitializeState(SudokuBoard board, SolverState state)
         {
@@ -145,7 +156,7 @@ namespace omegaSudoku
                         if ((state.RowUsed[r] & bit) != 0 ||
                             (state.ColUsed[c] & bit) != 0 ||
                             (state.BoxUsed[boxIndex] & bit) != 0)
-                            return false; // Conflict detected
+                            return false;
                         state.RowUsed[r] |= bit;
                         state.ColUsed[c] |= bit;
                         state.BoxUsed[boxIndex] |= bit;
@@ -156,16 +167,19 @@ namespace omegaSudoku
         }
 
         /// <summary>
-        /// Standard backtracking with MRV (Minimum Remaining Values) heuristic.
-        /// Used for 9x9 and 16x16 boards.
+        /// Standard backtracking with MRV, plus forward checking and transposition table.
         /// </summary>
         private bool BacktrackOptimized(SudokuBoard board, SolverState state)
         {
+            // Check if we've seen this configuration
+            string hash = GetBoardHash(board);
+            if (transpositionTable.Contains(hash))
+                return false;
+
             int bestRow = -1, bestCol = -1;
             int bestCandidateCount = int.MaxValue;
             int bestCandidates = 0;
 
-            // Find the empty cell with the minimum number of candidates (MRV).
             for (int r = 0; r < state.Size; r++)
             {
                 for (int c = 0; c < state.Size; c++)
@@ -176,65 +190,70 @@ namespace omegaSudoku
                         int candidates = state.FullMask & ~used;
                         int count = BitOperations.PopCount((uint)candidates);
                         if (count == 0)
-                            return false; // No candidates available, backtrack.
+                            return false; // fail-fast: no candidates
+
                         if (count < bestCandidateCount)
                         {
                             bestCandidateCount = count;
                             bestCandidates = candidates;
                             bestRow = r;
                             bestCol = c;
-                            if (count == 1)
+                            if (count == 1) // immediate pick
                                 break;
                         }
                     }
                 }
             }
 
-            // If no empty cell is found, the board is solved.
+            // No empty cells -> solved
             if (bestRow == -1)
                 return true;
 
-            // Try each candidate for the selected cell.
+            // Try each candidate
             while (bestCandidates != 0)
             {
-                int bit = bestCandidates & -bestCandidates; // Get the lowest set bit.
+                int bit = bestCandidates & -bestCandidates;
                 bestCandidates -= bit;
                 int val = BitOperations.TrailingZeroCount((uint)bit) + 1;
 
+                // Assign
                 board.Board[bestRow, bestCol] = val;
                 state.RowUsed[bestRow] |= bit;
                 state.ColUsed[bestCol] |= bit;
                 state.BoxUsed[state.GetBoxIndex(bestRow, bestCol)] |= bit;
 
-                if (BacktrackOptimized(board, state))
+                // Forward check
+                if (ForwardCheck(board, state) && BacktrackOptimized(board, state))
                     return true;
 
-                // Undo the assignment (backtracking).
+                // Undo assignment
                 board.Board[bestRow, bestCol] = 0;
                 state.RowUsed[bestRow] &= ~bit;
                 state.ColUsed[bestCol] &= ~bit;
                 state.BoxUsed[state.GetBoxIndex(bestRow, bestCol)] &= ~bit;
             }
 
+            // Mark as unsolvable in this path
+            transpositionTable.Add(hash);
             return false;
         }
 
         /// <summary>
-        /// Backtracking within the selected subgrid (for 25x25 boards).
-        /// It fills cells based on the sorted order (MRV and degree) within the subgrid and then continues globally.
+        /// Backtracking for the selected subgrid in 25x25 boards, continuing with global backtracking afterwards.
         /// </summary>
         private bool BacktrackSubgrid(SudokuBoard board, SolverState state, List<CellInfo> subgridCells)
         {
-            // If there are no more cells in the subgrid, continue with global backtracking.
+            string hash = GetBoardHash(board);
+            if (transpositionTable.Contains(hash))
+                return false;
+
             if (subgridCells.Count == 0)
                 return BacktrackOptimized(board, state);
 
-            // Select the first cell from the sorted list.
-            CellInfo cell = subgridCells[0];
+            var cell = subgridCells[0];
             subgridCells.RemoveAt(0);
-            int r = cell.Row, c = cell.Col;
 
-            // Compute the current candidate mask for this cell.
+            int r = cell.Row, c = cell.Col;
             int candidateMask = state.FullMask & ~(state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)]);
 
             while (candidateMask != 0)
@@ -243,48 +262,202 @@ namespace omegaSudoku
                 candidateMask -= bit;
                 int val = BitOperations.TrailingZeroCount((uint)bit) + 1;
 
+                // Assign
                 board.Board[r, c] = val;
                 state.RowUsed[r] |= bit;
                 state.ColUsed[c] |= bit;
                 state.BoxUsed[state.GetBoxIndex(r, c)] |= bit;
 
-                if (BacktrackSubgrid(board, state, subgridCells))
+                if (ForwardCheck(board, state) && BacktrackSubgrid(board, state, subgridCells))
                     return true;
 
-                // Undo the assignment if it leads to a dead-end.
+                // Undo
                 board.Board[r, c] = 0;
                 state.RowUsed[r] &= ~bit;
                 state.ColUsed[c] &= ~bit;
                 state.BoxUsed[state.GetBoxIndex(r, c)] &= ~bit;
             }
 
-            // Return the cell back to the list if no valid assignment was found.
             subgridCells.Insert(0, cell);
+            transpositionTable.Add(hash);
             return false;
         }
 
         /// <summary>
-        /// Calculates the "degree" of a cell, i.e. the number of empty neighbor cells in the same row,
-        /// column, and subgrid. This value indicates how influential the cell is.
+        /// ForwardCheck: verify no empty cell has zero candidates,
+        /// and each row, column, and box can still place all required digits (Missing Number Check).
+        /// </summary>
+        private bool ForwardCheck(SudokuBoard board, SolverState state)
+        {
+            int size = state.Size;
+            // 1) Zero-candidate check
+            for (int r = 0; r < size; r++)
+            {
+                for (int c = 0; c < size; c++)
+                {
+                    if (board.Board[r, c] == 0)
+                    {
+                        int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
+                        int candidates = state.FullMask & ~used;
+                        if (candidates == 0)
+                            return false; // fail-fast
+                    }
+                }
+            }
+
+            // 2) Missing Number Check (for each row, col, box)
+            if (!CheckRowColBoxMissing(board, state))
+                return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Ensures that for each row, column, and box, every digit (1..Size)
+        /// has at least one possible cell to go into.
+        /// If any digit can't appear anywhere, fail fast.
+        /// </summary>
+        private bool CheckRowColBoxMissing(SudokuBoard board, SolverState state)
+        {
+            int size = state.Size;
+            int full = state.FullMask;
+
+            // For each row
+            for (int r = 0; r < size; r++)
+            {
+                // "used" mask includes the digits already placed in that row
+                int rowUsed = state.RowUsed[r];
+                // If a digit isn't placed, it must have at least one cell candidate
+                // we'll check which columns are free
+                for (int digit = 1; digit <= size; digit++)
+                {
+                    int bit = 1 << (digit - 1);
+                    // If digit is not used yet in row, check if there's any cell for it
+                    if ((rowUsed & bit) == 0)
+                    {
+                        bool canPlace = false;
+                        for (int c = 0; c < size && !canPlace; c++)
+                        {
+                            if (board.Board[r, c] == 0)
+                            {
+                                int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
+                                if ((used & bit) == 0)
+                                    canPlace = true;
+                            }
+                        }
+                        if (!canPlace) return false;
+                    }
+                }
+            }
+
+            // For each column
+            for (int c = 0; c < size; c++)
+            {
+                int colUsed = state.ColUsed[c];
+                for (int digit = 1; digit <= size; digit++)
+                {
+                    int bit = 1 << (digit - 1);
+                    if ((colUsed & bit) == 0)
+                    {
+                        bool canPlace = false;
+                        for (int r = 0; r < size && !canPlace; r++)
+                        {
+                            if (board.Board[r, c] == 0)
+                            {
+                                int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
+                                if ((used & bit) == 0)
+                                    canPlace = true;
+                            }
+                        }
+                        if (!canPlace) return false;
+                    }
+                }
+            }
+
+            // For each box
+            int subSize = state.SubSize;
+            for (int boxRow = 0; boxRow < size; boxRow += subSize)
+            {
+                for (int boxCol = 0; boxCol < size; boxCol += subSize)
+                {
+                    // Collect used for this box
+                    int boxUsed = 0;
+                    for (int r = boxRow; r < boxRow + subSize; r++)
+                    {
+                        for (int c = boxCol; c < boxCol + subSize; c++)
+                        {
+                            int val = board.Board[r, c];
+                            if (val != 0)
+                                boxUsed |= (1 << (val - 1));
+                        }
+                    }
+                    for (int digit = 1; digit <= size; digit++)
+                    {
+                        int bit = 1 << (digit - 1);
+                        if ((boxUsed & bit) == 0)
+                        {
+                            // digit not placed in this box, check if there's any cell for it
+                            bool canPlace = false;
+                            for (int r = boxRow; r < boxRow + subSize && !canPlace; r++)
+                            {
+                                for (int c = boxCol; c < boxCol + subSize && !canPlace; c++)
+                                {
+                                    if (board.Board[r, c] == 0)
+                                    {
+                                        int used = state.RowUsed[r] | state.ColUsed[c] | state.BoxUsed[state.GetBoxIndex(r, c)];
+                                        if ((used & bit) == 0)
+                                            canPlace = true;
+                                    }
+                                }
+                            }
+                            if (!canPlace) return false;
+                        }
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Returns a string representing the current board state for transposition table.
+        /// </summary>
+        private string GetBoardHash(SudokuBoard board)
+        {
+            StringBuilder sb = new StringBuilder();
+            int size = board.Size;
+            for (int r = 0; r < size; r++)
+            {
+                for (int c = 0; c < size; c++)
+                {
+                    sb.Append(board.Board[r, c]);
+                    sb.Append(',');
+                }
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Calculate the "degree" of a cell (number of empty neighbors in row/column/subgrid).
         /// </summary>
         private int CalculateDegree(SudokuBoard board, SolverState state, int r, int c)
         {
-            int size = board.Size;
-            HashSet<(int, int)> neighbors = new HashSet<(int, int)>();
+            int size = state.Size;
+            var neighbors = new HashSet<(int, int)>();
 
-            // Neighbors in the same row.
+            // same row
             for (int j = 0; j < size; j++)
             {
                 if (j != c && board.Board[r, j] == 0)
                     neighbors.Add((r, j));
             }
-            // Neighbors in the same column.
+            // same col
             for (int i = 0; i < size; i++)
             {
                 if (i != r && board.Board[i, c] == 0)
                     neighbors.Add((i, c));
             }
-            // Neighbors in the same subgrid (block).
+            // same box
             int subSize = state.SubSize;
             int startRow = (r / subSize) * subSize;
             int startCol = (c / subSize) * subSize;
@@ -296,30 +469,7 @@ namespace omegaSudoku
                         neighbors.Add((i, j));
                 }
             }
-
             return neighbors.Count;
-        }
-    }
-
-    /// <summary>
-    /// Helper class to store information about an empty cell:
-    /// its position, candidate bit mask, number of candidates, and its degree (influence).
-    /// </summary>
-    internal class CellInfo
-    {
-        public int Row { get; }
-        public int Col { get; }
-        public int CandidateMask { get; }
-        public int CandidateCount { get; }
-        public int Degree { get; }
-
-        public CellInfo(int row, int col, int candidateMask, int candidateCount, int degree)
-        {
-            Row = row;
-            Col = col;
-            CandidateMask = candidateMask;
-            CandidateCount = candidateCount;
-            Degree = degree;
         }
     }
 }
