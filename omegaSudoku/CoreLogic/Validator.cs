@@ -1,7 +1,9 @@
-﻿using System;
+﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.Interfaces;
+using System;
 using System.Collections.Generic;
 
-namespace omegaSudoku
+namespace omegaSudoku.CoreLogic
 {
     public class Validator : IValidator
     {
@@ -105,8 +107,8 @@ namespace omegaSudoku
             }
 
             int subgridSize = (int)Math.Sqrt(size);
-            int startRow = (row / subgridSize) * subgridSize;
-            int startCol = (col / subgridSize) * subgridSize;
+            int startRow = row / subgridSize * subgridSize;
+            int startCol = col / subgridSize * subgridSize;
             for (int r = startRow; r < startRow + subgridSize; r++)
             {
                 for (int c = startCol; c < startCol + subgridSize; c++)

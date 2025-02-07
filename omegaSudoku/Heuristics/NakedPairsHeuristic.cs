@@ -1,8 +1,11 @@
-﻿using System;
+﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.CoreLogic;
+using omegaSudoku.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 
-namespace omegaSudoku
+namespace omegaSudoku.Heuristics
 {
     /// <summary>
     /// NakedPairsHeuristic with support for rows, columns, and boxes.

@@ -1,4 +1,6 @@
-﻿namespace omegaSudoku
+﻿using omegaSudoku.BoardAndCells;
+
+namespace omegaSudoku.Interfaces
 {
     public interface ISudokuSolver
     {

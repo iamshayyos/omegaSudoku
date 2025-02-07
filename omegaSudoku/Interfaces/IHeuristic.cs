@@ -1,4 +1,7 @@
-﻿namespace omegaSudoku
+﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.CoreLogic;
+
+namespace omegaSudoku.Interfaces
 {
     public interface IHeuristic
     {

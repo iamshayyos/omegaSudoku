@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace omegaSudoku
+namespace omegaSudoku.BoardAndCells
 {
     public class SudokuBoard
     {
@@ -38,7 +38,7 @@ namespace omegaSudoku
             {
                 if (i > 0 && i % subSize == 0)
                 {
-                    Console.WriteLine(new string('-', (Size * 3) / 2));
+                    Console.WriteLine(new string('-', Size * 3 / 2));
                 }
                 for (int j = 0; j < Size; j++)
                 {

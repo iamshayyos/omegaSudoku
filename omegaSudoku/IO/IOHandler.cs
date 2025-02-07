@@ -1,8 +1,10 @@
-﻿using System;
+﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.Interfaces;
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
-namespace omegaSudoku
+namespace omegaSudoku.IO
 {
     public class IOHandler
     {

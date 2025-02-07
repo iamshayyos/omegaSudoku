@@ -1,8 +1,11 @@
-﻿using System;
+﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.CoreLogic;
+using omegaSudoku.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 
-namespace omegaSudoku
+namespace omegaSudoku.Heuristics
 {
     /// <summary>
     /// Hidden Pairs Heuristic:
@@ -74,7 +77,7 @@ namespace omegaSudoku
                     // For each digit that can appear
                     for (int digit = 1; digit <= size; digit++)
                     {
-                        int bit = 1 << (digit - 1);
+                        int bit = 1 << digit - 1;
                         if ((mask & bit) != 0)
                         {
                             candidatePositions[digit].Add(i); // store i as the position in the row/col
@@ -113,7 +116,7 @@ namespace omegaSudoku
                     int digitMask = 0;
                     foreach (var d in digits)
                     {
-                        digitMask |= (1 << (d - 1));
+                        digitMask |= 1 << d - 1;
                     }
                     int[] arrPos = new int[] { positions.Item1, positions.Item2 };
 
@@ -175,7 +178,7 @@ namespace omegaSudoku
                         int mask = state.FullMask & ~used;
                         for (int d = 1; d <= size; d++)
                         {
-                            int bit = 1 << (d - 1);
+                            int bit = 1 << d - 1;
                             if ((mask & bit) != 0)
                             {
                                 candidatePositions[d].Add((r, c));
@@ -194,7 +197,7 @@ namespace omegaSudoku
                     var listPos = candidatePositions[d];
                     var p1 = listPos[0];
                     var p2 = listPos[1];
-                    var key = (OrderTuple(p1, p2));
+                    var key = OrderTuple(p1, p2);
                     if (!pairs.ContainsKey(key))
                         pairs[key] = new List<int>();
                     pairs[key].Add(d);
@@ -211,7 +214,7 @@ namespace omegaSudoku
                     // hidden pair
                     int digitMask = 0;
                     foreach (var d in digits)
-                        digitMask |= (1 << (d - 1));
+                        digitMask |= 1 << d - 1;
 
                     var cells = new List<(int, int)> { posPair.Item1, posPair.Item2 };
                     foreach (var (r, c) in cells)

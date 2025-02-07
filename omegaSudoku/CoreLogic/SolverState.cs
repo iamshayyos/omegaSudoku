@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace omegaSudoku
+namespace omegaSudoku.CoreLogic
 {
     public class SolverState
     {
@@ -23,7 +23,7 @@ namespace omegaSudoku
 
         public int GetBoxIndex(int row, int col)
         {
-            return (row / SubSize) * SubSize + (col / SubSize);
+            return row / SubSize * SubSize + col / SubSize;
         }
     }
 }

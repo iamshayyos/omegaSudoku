@@ -1,6 +1,8 @@
-﻿using omegaSudoku;
+﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.CoreLogic;
+using omegaSudoku.Interfaces;
 
-namespace omegaSudoku
+namespace omegaSudoku.Heuristics
 {
     public class HiddenSingleHeuristic : IHeuristic
     {
@@ -33,7 +35,7 @@ namespace omegaSudoku
                     int possible = state.FullMask & ~used;
                     for (int j = 0; j < state.Size; j++)
                     {
-                        if ((possible & (1 << j)) != 0)
+                        if ((possible & 1 << j) != 0)
                         {
                             counts[j]++;
                             positions[j, 0] = row;

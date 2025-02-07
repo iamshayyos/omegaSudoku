@@ -1,7 +1,10 @@
-﻿using System;
+﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.CoreLogic;
+using omegaSudoku.Interfaces;
+using System;
 using System.Numerics;
 
-namespace omegaSudoku
+namespace omegaSudoku.Heuristics
 {
     /// <summary>
     /// Implements a simple Pointing Pairs heuristic.
@@ -22,7 +25,7 @@ namespace omegaSudoku
                 {
                     for (int num = 1; num <= size; num++)
                     {
-                        int bit = 1 << (num - 1);
+                        int bit = 1 << num - 1;
                         int rowFound = -1;
                         int colFound = -1;
                         int count = 0;

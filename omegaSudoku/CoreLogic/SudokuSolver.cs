@@ -1,9 +1,11 @@
-﻿using System;
+﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Text;
 
-namespace omegaSudoku
+namespace omegaSudoku.CoreLogic
 {
     /// <summary>
     /// The main Sudoku solver class.
@@ -151,7 +153,7 @@ namespace omegaSudoku
                     int val = board.Board[r, c];
                     if (val != 0)
                     {
-                        int bit = 1 << (val - 1);
+                        int bit = 1 << val - 1;
                         int boxIndex = state.GetBoxIndex(r, c);
                         if ((state.RowUsed[r] & bit) != 0 ||
                             (state.ColUsed[c] & bit) != 0 ||
@@ -331,7 +333,7 @@ namespace omegaSudoku
                 // we'll check which columns are free
                 for (int digit = 1; digit <= size; digit++)
                 {
-                    int bit = 1 << (digit - 1);
+                    int bit = 1 << digit - 1;
                     // If digit is not used yet in row, check if there's any cell for it
                     if ((rowUsed & bit) == 0)
                     {
@@ -356,7 +358,7 @@ namespace omegaSudoku
                 int colUsed = state.ColUsed[c];
                 for (int digit = 1; digit <= size; digit++)
                 {
-                    int bit = 1 << (digit - 1);
+                    int bit = 1 << digit - 1;
                     if ((colUsed & bit) == 0)
                     {
                         bool canPlace = false;
@@ -388,12 +390,12 @@ namespace omegaSudoku
                         {
                             int val = board.Board[r, c];
                             if (val != 0)
-                                boxUsed |= (1 << (val - 1));
+                                boxUsed |= 1 << val - 1;
                         }
                     }
                     for (int digit = 1; digit <= size; digit++)
                     {
-                        int bit = 1 << (digit - 1);
+                        int bit = 1 << digit - 1;
                         if ((boxUsed & bit) == 0)
                         {
                             // digit not placed in this box, check if there's any cell for it
@@ -459,8 +461,8 @@ namespace omegaSudoku
             }
             // same box
             int subSize = state.SubSize;
-            int startRow = (r / subSize) * subSize;
-            int startCol = (c / subSize) * subSize;
+            int startRow = r / subSize * subSize;
+            int startCol = c / subSize * subSize;
             for (int i = startRow; i < startRow + subSize; i++)
             {
                 for (int j = startCol; j < startCol + subSize; j++)

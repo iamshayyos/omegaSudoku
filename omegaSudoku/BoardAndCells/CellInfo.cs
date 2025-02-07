@@ -1,4 +1,4 @@
-﻿namespace omegaSudoku
+﻿namespace omegaSudoku.BoardAndCells
 {
     /// <summary>
     /// Helper class to store information about an empty cell:
