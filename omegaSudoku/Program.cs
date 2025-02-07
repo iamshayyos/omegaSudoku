@@ -1,4 +1,7 @@
-﻿using omegaSudoku;
+﻿using omegaSudoku.Interfaces;
+using omegaSudoku.CoreLogic;
+using omegaSudoku.IO;
+using omegaSudoku.Heuristics;
 using System;
 
 namespace OmegaSudoku
