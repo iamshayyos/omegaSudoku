@@ -1,54 +1,94 @@
 ﻿using System;
 
-namespace omegaSudoku.BoardAndCells
+public class SudokuBoard
 {
-    public class SudokuBoard
+    public int[,] Board { get; private set; }
+    public int Size { get; private set; }
+
+    public SudokuBoard(string input, int size)
     {
-        public int[,] Board { get; private set; }
-        public int Size { get; private set; }
+        Size = size;
+        Board = new int[size, size];
+        InitializeBoard(input);
+    }
 
-        public SudokuBoard(string input, int size)
+    private void InitializeBoard(string input)
+    {
+        for (int i = 0; i < input.Length && i < Size * Size; i++)
         {
-            Size = size;
-            Board = new int[size, size];
-            InitializeBoard(input);
+            Board[i / Size, i % Size] = CharToInt(input[i]);
         }
+    }
 
-        private void InitializeBoard(string input)
+    private int CharToInt(char c)
+    {
+        if (char.IsDigit(c))
+            return c - '0';
+        if (char.IsLetter(c))
+            return char.ToUpper(c) - 'A' + 10;
+        return 0;
+    }
+
+    private string CellValueToString(int val)
+    {
+        return val == 0 ? "." : val.ToString();
+    }
+
+    public void PrintBoard()
+    {
+        int subSize = (int)Math.Sqrt(Size);
+
+        // Determine the maximum cell width for alignment
+        int maxLen = 1;
+        for (int r = 0; r < Size; r++)
         {
-            for (int i = 0; i < input.Length; i++)
+            for (int c = 0; c < Size; c++)
             {
-                Board[i / Size, i % Size] = CharToInt(input[i]);
+                string cellStr = CellValueToString(Board[r, c]);
+                if (cellStr.Length > maxLen)
+                    maxLen = cellStr.Length;
             }
         }
+        int cellWidth = maxLen + 1;
 
-        private int CharToInt(char c)
+        // Create a horizontal line
+        string CreateHorizontalLine()
         {
-            if (char.IsDigit(c))
-                return c - '0';
-            if (char.IsLetter(c))
-                return char.ToUpper(c) - 'A' + 10;
-            return 0;
-        }
-
-        public void PrintBoard()
-        {
-            int subSize = (int)Math.Sqrt(Size);
-            for (int i = 0; i < Size; i++)
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            for (int col = 0; col < Size; col++)
             {
-                if (i > 0 && i % subSize == 0)
+                if (col % subSize == 0)
                 {
-                    Console.WriteLine(new string('-', Size * 3 / 2));
+                    sb.Append('+');
                 }
-                for (int j = 0; j < Size; j++)
-                {
-                    if (j > 0 && j % subSize == 0)
-                        Console.Write("| ");
-                    int val = Board[i, j];
-                    Console.Write(val == 0 ? ". " : val + " ");
-                }
-                Console.WriteLine();
+                sb.Append(new string('-', cellWidth));
             }
+            sb.Append('+');
+            return sb.ToString();
         }
+
+        // Print rows
+        for (int row = 0; row < Size; row++)
+        {
+            if (row % subSize == 0)
+            {
+                Console.WriteLine(CreateHorizontalLine());
+            }
+
+            for (int col = 0; col < Size; col++)
+            {
+                if (col % subSize == 0)
+                {
+                    Console.Write("|");
+                }
+
+                string valStr = CellValueToString(Board[row, col]);
+                Console.Write(valStr.PadLeft(cellWidth));
+            }
+            Console.WriteLine("|");
+        }
+
+        // Print bottom border
+        Console.WriteLine(CreateHorizontalLine());
     }
 }
