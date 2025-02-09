@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Threading.Tasks;
 using omegaSudoku.BoardAndCells;
+using omegaSudoku.Exceptions;
 using omegaSudoku.Interfaces;
 
 namespace omegaSudoku.IO
@@ -47,27 +48,51 @@ namespace omegaSudoku.IO
                     continue;
                 }
 
-                // Validate format
-                if (!_validator.IsValidFormat(input, out int boardSize))
+
+                SudokuBoard board = null;
+                int boardSize = 0;
+                try
                 {
-                    Console.WriteLine("Invalid input format. The length must be N*N (where N in [1..25]).");
+                    // Validate format
+                    _validator.IsValidFormat(input, out boardSize);
+
+                    // Create the board
+                    board = new SudokuBoard(input, boardSize);
+
+                    // Validate board consistency
+                    _validator.IsBoardValid(board, boardSize);
+
+                    // Check solvability
+                    _validator.IsSolvable(board, boardSize);
+                }
+                catch (InputTooShortException ex)
+                {
+                    Console.WriteLine("Input format error: " + ex.Message);
                     continue;
                 }
-
-                // Create the board
-                SudokuBoard board = new SudokuBoard(input, boardSize);
-
-                // Validate the board's internal consistency
-                if (!_validator.IsBoardValid(board, boardSize))
+                catch (InputTooLargeException ex)
                 {
-                    Console.WriteLine("The Sudoku board is invalid (conflicting values). Please try again.");
+                    Console.WriteLine("Input format error: " + ex.Message);
                     continue;
                 }
-
-                // Check that it's solvable (no immediate contradictions)
-                if (!_validator.IsSolvable(board, boardSize))
+                catch (InvalidCharacterException ex)
                 {
-                    Console.WriteLine("The Sudoku board has no solution (immediate contradiction). Try again.");
+                    Console.WriteLine("Input format error: " + ex.Message);
+                    continue;
+                }
+                catch (InvalidFormatException ex)
+                {
+                    Console.WriteLine("Input format error: " + ex.Message);
+                    continue;
+                }
+                catch (BoardInitializationException ex)
+                {
+                    Console.WriteLine("Board initialization error: " + ex.Message);
+                    continue;
+                }
+                catch (UnsolvableBoardException ex)
+                {
+                    Console.WriteLine("Unsolvable board: " + ex.Message);
                     continue;
                 }
 

@@ -1,4 +1,5 @@
 ﻿using omegaSudoku.BoardAndCells;
+using omegaSudoku.Exceptions;
 using omegaSudoku.Interfaces;
 using System;
 using System.Collections.Generic;
@@ -6,16 +7,43 @@ using System.Collections.Generic;
 namespace omegaSudoku.CoreLogic
 {
     public class Validator : IValidator
-    {
+    {   
         private readonly int _maxSize = 25;
         private readonly int _minSize = 1;
 
         public bool IsValidFormat(string input, out int boardSize)
         {
             boardSize = (int)Math.Sqrt(input.Length);
-            return boardSize * boardSize == input.Length
-                   && boardSize >= _minSize
-                   && boardSize <= _maxSize;
+            
+            // Check if too small
+            if (boardSize < _minSize)
+            {
+                throw new InputTooShortException(
+                    $"Input length ({input.Length}) is too short. Must be between {_minSize} and {_maxSize}."
+                );
+            }
+            // Check if too large
+            if (boardSize > _maxSize) 
+            {
+                throw new InputTooLargeException(
+                    $"Input length ({input.Length}) is too large. Must be between {_minSize} and {_maxSize}."
+                );
+            }
+            if (boardSize * boardSize != input.Length) 
+            {
+                throw new InvalidFormatException(
+                    $"Input length ({input.Length}) is not a perfect square for a board size in range [{_minSize}..{_maxSize}]."
+                );
+            }
+            // Validate characters against allowed set
+            foreach (char c in input)
+            {
+                if (!isValidChar(boardSize,c))
+                {
+                    throw new InvalidCharacterException(c);
+                }
+            }
+            return true;
         }
 
         public bool IsBoardValid(SudokuBoard board, int size)
@@ -23,9 +51,17 @@ namespace omegaSudoku.CoreLogic
             // Check rows and columns.
             for (int i = 0; i < size; i++)
             {
-                if (!IsUnitValid(board, size, i, true) || !IsUnitValid(board, size, i, false))
+                if (!IsUnitValid(board, size, i, isRow: true))
                 {
-                    return false;
+                    throw new BoardInitializationException(
+                        $"Duplicate value found in row {i + 1}."
+                    );
+                }
+                if (!IsUnitValid(board, size, i, isRow: false))
+                {
+                    throw new BoardInitializationException(
+                        $"Duplicate value found in column {i + 1}."
+                    );
                 }
             }
 
@@ -36,11 +72,20 @@ namespace omegaSudoku.CoreLogic
                 {
                     if (!IsSubgridValid(board, row, col, subgridSize))
                     {
-                        return false;
+                        throw new BoardInitializationException(
+                            $"Duplicate values found in subgrid starting at ({row},{col})."
+                        );
                     }
                 }
             }
+
             return true;
+        }
+
+        private bool isValidChar(int boardSize, char cell)
+        {
+            char maxLetter =(char)('0'+boardSize);
+            return (maxLetter >= cell)&&(cell>='0');
         }
 
         private bool IsUnitValid(SudokuBoard board, int size, int index, bool isRow)
@@ -85,11 +130,15 @@ namespace omegaSudoku.CoreLogic
                     int num = board.Board[row, col];
                     if (num != 0)
                     {
+                        // Temporarily remove the number to validate its placement
                         board.Board[row, col] = 0;
                         if (!IsMoveValid(board, row, col, num, size))
                         {
+                            // Restore the number before throwing the exception
                             board.Board[row, col] = num;
-                            return false;
+                            throw new UnsolvableBoardException(
+                                $"Contradiction found with value '{num}' at position ({row},{col})."
+                            );
                         }
                         board.Board[row, col] = num;
                     }
