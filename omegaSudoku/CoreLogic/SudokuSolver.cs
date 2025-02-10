@@ -1,11 +1,11 @@
-﻿using omegaSudoku.BoardAndCells;
-using omegaSudoku.Interfaces;
+﻿using omegaSudoku.Interfaces;
 
 namespace omegaSudoku.CoreLogic
 {
     /// <summary>
-    /// Facade for solving a Sudoku board.
-    /// Decides which solver strategy to use (standard vs advanced 25x25).
+    /// Uses FastBacktrackingSolver for boards up to 16x16,
+    /// FastAdvanced25x25Solver for 25x25 boards,
+    /// and Advanced25x25Solver (if needed) for additional strategies.
     /// </summary>
     public class SudokuSolver : ISudokuSolver
     {
@@ -19,21 +19,16 @@ namespace omegaSudoku.CoreLogic
         public bool Solve(SudokuBoard board)
         {
             int size = board.Size;
-
             if (size <= 16)
             {
-                // Solver for 9x9 or 16x16
-                var solver = new StandardBacktrackingSolver(_heuristics);
+                var solver = new FastBacktrackingSolver();
                 return solver.Solve(board);
             }
             else if (size == 25)
             {
-                // Advanced solver for 25x25
-                var solver = new Advanced25x25Solver(_heuristics);
+                var solver = new FastAdvanced25x25Solver();
                 return solver.Solve(board);
             }
-
-            // Does not support other board sizes
             return false;
         }
     }
