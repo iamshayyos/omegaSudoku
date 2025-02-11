@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using omegaSudoku.Exceptions;
 
 namespace omegaSudoku.IO
 {
@@ -41,8 +42,7 @@ namespace omegaSudoku.IO
             else
             {
                 // Invalid choice
-                Console.WriteLine("Invalid choice. Please type '1', '2', or 'end'.");
-                return null; 
+                throw new InvalidInputException("Invalid choice. Please type '1', '2', or 'end'.");
             }
         }
 
@@ -51,10 +51,13 @@ namespace omegaSudoku.IO
         /// </summary>
         private string GetManualInput()
         {
+            
             Console.WriteLine("Please enter the Sudoku puzzle as a single line (e.g. 81 characters for 9x9).");
             string input = Console.ReadLine();
-
-            
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                throw new InvalidInputException("Input is empty or contains only whitespace. Please try again.");
+            }
             return input;
         }
 
@@ -68,14 +71,12 @@ namespace omegaSudoku.IO
 
             if (string.IsNullOrWhiteSpace(filePath))
             {
-                Console.WriteLine("File path cannot be empty.");
-                return null;
+                throw new InvalidInputException("File path cannot be empty. Please provide a valid path.");
             }
 
             if (!File.Exists(filePath))
             {
-                Console.WriteLine("File not found. Please check the path and try again.");
-                return null;
+                throw new FileNotFoundException("File not found. Please check the path and try again.");
             }
 
             try
@@ -84,17 +85,19 @@ namespace omegaSudoku.IO
                 string fileContent = File.ReadAllText(filePath);
 
                 // trim out extra whitespace/newlines
-                fileContent = fileContent.Replace("\r", "")
-                                         .Replace("\n", "")
-                                         .Trim();
+                fileContent = fileContent.Replace("\r", "").Replace("\n", "").Trim();
+                if (string.IsNullOrEmpty(fileContent))
+                {
+                    throw new InvalidInputException("The file is empty. Please provide a valid Sudoku puzzle.");
+                }
 
-                
+
                 return fileContent;
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                Console.WriteLine($"Error reading file: {ex.Message}");
-                return null;
+                throw new IOException($"Error reading file: {ex.Message}", ex);
+
             }
         }
     }

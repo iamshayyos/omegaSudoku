@@ -29,20 +29,21 @@ namespace omegaSudoku.CoreLogic
                     $"Input length ({input.Length}) is too large. Must be between {_minSize} and {_maxSize}."
                 );
             }
+            // Validate characters against allowed set
+            foreach (char c in input)
+            {
+                if (!isValidChar(boardSize, c))
+                {
+                    throw new InvalidCharacterException(c);
+                }
+            }
             if (boardSize * boardSize != input.Length) 
             {
                 throw new InvalidFormatException(
                     $"Input length ({input.Length}) is not a perfect square for a board size in range [{_minSize}..{_maxSize}]."
                 );
             }
-            // Validate characters against allowed set
-            foreach (char c in input)
-            {
-                if (!isValidChar(boardSize,c))
-                {
-                    throw new InvalidCharacterException(c);
-                }
-            }
+            
             return true;
         }
 

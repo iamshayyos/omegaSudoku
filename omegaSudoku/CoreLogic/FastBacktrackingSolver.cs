@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Numerics;
 using omegaSudoku.Interfaces;
 using omegaSudoku.BoardAndCells;
+using omegaSudoku.Exceptions;
 
 namespace omegaSudoku.CoreLogic
 {
     /// <summary>
-    /// backtracking solver using bit-level operations and the MRV heuristic.
+    /// Backtracking solver using bit-level operations and the MRV heuristic.
     /// This solver precomputes the list of empty cells and calculates candidate masks during the solving.
     /// </summary>
     public class FastBacktrackingSolver : ISudokuSolver
@@ -30,7 +31,7 @@ namespace omegaSudoku.CoreLogic
         /// Solve the given SudokuBoard.
         /// </summary>
         /// <param name="sudokuBoard">The Sudoku board to solve.</param>
-        /// <returns>True if solved, false otherwise.</returns>
+        /// <returns>True if solved; otherwise, an UnsolvableBoardException is thrown.</returns>
         public bool Solve(SudokuBoard sudokuBoard)
         {
             size = sudokuBoard.Size;
@@ -65,7 +66,15 @@ namespace omegaSudoku.CoreLogic
             }
 
             // Begin recursion starting at position 0 in the empties list.
-            return SolveRecursively(0);
+            if (SolveRecursively(0))
+            {
+                return true;
+            }
+            else
+            {
+                // Instead of returning false, throw the exception
+                throw new UnsolvableBoardException("Board cannot be solved.");
+            }
         }
 
         /// <summary>

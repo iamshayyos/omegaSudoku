@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 using omegaSudoku.BoardAndCells;
 using omegaSudoku.Exceptions;
@@ -7,20 +8,19 @@ using omegaSudoku.Interfaces;
 
 namespace omegaSudoku.IO
 {
+    /// <summary>
+    /// Handles console I/O for the Sudoku application.
+    /// </summary>
     public class IOHandler
     {
         private readonly ISudokuSolver _solver;
         private readonly IValidator _validator;
-
-        // We add a private field for SudokuInputProvider
         private readonly SudokuInputProvider _inputProvider;
 
         public IOHandler(ISudokuSolver solver, IValidator validator)
         {
             _solver = solver;
             _validator = validator;
-
-            // Instantiate our new provider
             _inputProvider = new SudokuInputProvider();
         }
 
@@ -31,9 +31,27 @@ namespace omegaSudoku.IO
 
             while (true)
             {
-                // Instead of inlining the input logic, we call _inputProvider.GetPuzzleInput()
-                string input = _inputProvider.GetPuzzleInput();
+                string input;
+                try
+                {
+                    input = _inputProvider.GetPuzzleInput();
 
+                }
+                catch (InvalidInputException ex)
+                {
+                    Console.WriteLine($"Input error: {ex.Message}");
+                    continue;
+                }
+                catch (FileNotFoundException ex)
+                {
+                    Console.WriteLine($"File error: {ex.Message}");
+                    continue;
+                }
+                catch (IOException ex)
+                {
+                    Console.WriteLine($"File reading error: {ex.Message}");
+                    continue;
+                }
                 // If user typed "end", we exit
                 if (input == "end")
                 {
@@ -41,12 +59,7 @@ namespace omegaSudoku.IO
                     return;
                 }
 
-                // If null, it means invalid choice or read error → prompt again
-                if (string.IsNullOrWhiteSpace(input))
-                {
-                    Console.WriteLine("No valid puzzle input was provided. Please try again.");
-                    continue;
-                }
+               
 
 
                 SudokuBoard board = null;
@@ -106,9 +119,10 @@ namespace omegaSudoku.IO
 
                 try
                 {
-                    TimeSpan timeout = TimeSpan.FromSeconds(10);
+                    TimeSpan timeout = TimeSpan.FromSeconds(1);
                     isSolved = SolveWithTimeout(board, boardSize, timeout);
                 }
+                
                 catch (TimeoutException)
                 {
                     Console.WriteLine("The Sudoku board took too long to solve. Considered unsolvable for now.");
@@ -124,10 +138,7 @@ namespace omegaSudoku.IO
                     board.PrintBoard();
                     Console.WriteLine($"Time taken to solve: {stopwatch.ElapsedMilliseconds} ms");
                 }
-                else
-                {
-                    Console.WriteLine("This Sudoku board is unsolvable or timed out.");
-                }
+
             }
         }
 
@@ -136,7 +147,15 @@ namespace omegaSudoku.IO
             bool isSolved = false;
             Task solveTask = Task.Run(() =>
             {
-                isSolved = _solver.Solve(board);
+                try
+                {
+                    isSolved = _solver.Solve(board);
+                }
+                catch (UnsolvableBoardException ex)
+                {
+                    Console.WriteLine("Unsolvable board: " + ex.Message);
+                }
+
             });
 
             if (!solveTask.Wait(timeout))

@@ -1,5 +1,5 @@
 ﻿using omegaSudoku.Interfaces;
-
+using omegaSudoku.BoardAndCells;
 namespace omegaSudoku.CoreLogic
 {
     /// <summary>
@@ -21,6 +21,7 @@ namespace omegaSudoku.CoreLogic
             int size = board.Size;
             if (size <= 16)
             {
+                
                 var solver = new FastBacktrackingSolver();
                 return solver.Solve(board);
             }
