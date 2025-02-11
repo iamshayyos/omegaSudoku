@@ -57,5 +57,34 @@ namespace SudokuTests
             bool solved = _solver.Solve(board);
             Assert.True(solved);
         }
+
+        [Fact]
+        public void Solve_EmptySudoku_ShouldSolveSuccessfully()
+        {
+            string validEmptyBoard = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+            SudokuBoard board = new SudokuBoard(validEmptyBoard, 25);
+            bool solved = _solver.Solve(board);
+            Assert.True(solved);
+        }
+        [Fact]
+        public void Solve_AlreadySolvedSudoku_ShouldReturnTrueImmediately()
+        {
+            string solvedBoard = "123456789" +
+                                 "456789123" +
+                                 "789123456" +
+                                 "231564897" +
+                                 "564897231" +
+                                 "897231564" +
+                                 "312648975" +
+                                 "645972318" +
+                                 "978315642"; 
+
+            SudokuBoard board = new SudokuBoard(solvedBoard, 9);
+            bool solved = _solver.Solve(board);
+            Assert.True(solved);
+        }
+        
+
+
     }
 }

@@ -32,7 +32,7 @@ namespace omegaSudoku.CoreLogic
             // Validate characters against allowed set
             foreach (char c in input)
             {
-                if (!isValidChar(boardSize, c))
+                if (!isValidChar(boardSize,c))
                 {
                     throw new InvalidCharacterException(c);
                 }
