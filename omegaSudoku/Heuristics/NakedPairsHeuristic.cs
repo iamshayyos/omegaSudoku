@@ -1,4 +1,4 @@
-﻿using omegaSudoku.BoardAndCells;
+﻿using omegaSudoku.Board;
 using omegaSudoku.CoreLogic;
 using omegaSudoku.Interfaces;
 using System;

@@ -1,41 +1,69 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
-using System.Threading.Tasks;
-using omegaSudoku.BoardAndCells;
+using omegaSudoku.Board;
 using omegaSudoku.Exceptions;
 using omegaSudoku.Interfaces;
 
 namespace omegaSudoku.IO
 {
     /// <summary>
-    /// Handles console I/O for the Sudoku application.
+    /// Handles all input/output operations for the Sudoku application.
     /// </summary>
     public class IOHandler
     {
         private readonly ISudokuSolver _solver;
         private readonly IValidator _validator;
         private readonly SudokuInputProvider _inputProvider;
+        private bool _exitRequested = false;
 
+        /// <summary>
+        /// Initializes a new instance of IOHandler and sets up the Ctrl+C handler.
+        /// </summary>
         public IOHandler(ISudokuSolver solver, IValidator validator)
         {
             _solver = solver;
             _validator = validator;
             _inputProvider = new SudokuInputProvider();
+
+            // Handle Ctrl+C input for graceful termination.
+            Console.CancelKeyPress += (sender, e) =>
+            {
+                Console.WriteLine("\nCtrl+C detected. Do you really want to exit? (y/n)");
+                string response = Console.ReadLine()?.Trim().ToLower();
+                if (response == "y")
+                {
+                    _exitRequested = true;
+                    Console.WriteLine("Exiting program...");
+                }
+                else
+                {
+                    e.Cancel = true; // Cancel exit if user decides not to quit.
+                    Console.WriteLine("Continuing...");
+                }
+            };
         }
 
+        /// <summary>
+        /// Main execution loop for reading input, validating, solving, and displaying the Sudoku board.
+        /// </summary>
         public void Run()
         {
             Console.WriteLine("Welcome to Omega Sudoku!");
             Console.WriteLine("Enter 'end' to exit.");
 
-            while (true)
+            while (!_exitRequested)
             {
                 string input;
                 try
                 {
+                    // Get puzzle input from the user.
                     input = _inputProvider.GetPuzzleInput();
-
+                    if (input == null)
+                    {
+                        Console.WriteLine("\nCtrl+Z detected (EOF). Exiting program...");
+                        break;
+                    }
                 }
                 catch (InvalidInputException ex)
                 {
@@ -52,30 +80,21 @@ namespace omegaSudoku.IO
                     Console.WriteLine($"File reading error: {ex.Message}");
                     continue;
                 }
-                // If user typed "end", we exit
+
+                // Exit command received.
                 if (input == "end")
                 {
                     Console.WriteLine("Exiting the program. Goodbye!");
                     return;
                 }
 
-               
-
-
                 SudokuBoard board = null;
                 int boardSize = 0;
                 try
                 {
-                    // Validate format
                     _validator.IsValidFormat(input, out boardSize);
-
-                    // Create the board
                     board = new SudokuBoard(input, boardSize);
-
-                    // Validate board consistency
                     _validator.IsBoardValid(board, boardSize);
-
-                    // Check solvability
                     _validator.IsSolvable(board, boardSize);
                 }
                 catch (InputTooShortException ex)
@@ -109,44 +128,12 @@ namespace omegaSudoku.IO
                     continue;
                 }
 
-                // Print initial board
                 Console.WriteLine("Initial Sudoku board:");
                 board.PrintBoard();
 
-                // Attempt to solve
                 var stopwatch = Stopwatch.StartNew();
                 bool isSolved = false;
 
-                try
-                {
-                    TimeSpan timeout = TimeSpan.FromSeconds(1);
-                    isSolved = SolveWithTimeout(board, boardSize, timeout);
-                }
-                
-                catch (TimeoutException)
-                {
-                    Console.WriteLine("The Sudoku board took too long to solve. Considered unsolvable for now.");
-                    continue;
-                }
-
-                stopwatch.Stop();
-
-                // Print results
-                if (isSolved)
-                {
-                    Console.WriteLine("Solved Sudoku board:");
-                    board.PrintBoard();
-                    Console.WriteLine($"Time taken to solve: {stopwatch.ElapsedMilliseconds} ms");
-                }
-
-            }
-        }
-
-        private bool SolveWithTimeout(SudokuBoard board, int boardSize, TimeSpan timeout)
-        {
-            bool isSolved = false;
-            Task solveTask = Task.Run(() =>
-            {
                 try
                 {
                     isSolved = _solver.Solve(board);
@@ -154,16 +141,18 @@ namespace omegaSudoku.IO
                 catch (UnsolvableBoardException ex)
                 {
                     Console.WriteLine("Unsolvable board: " + ex.Message);
+                    continue;
                 }
 
-            });
+                stopwatch.Stop();
 
-            if (!solveTask.Wait(timeout))
-            {
-                throw new TimeoutException("The solution took too long and was terminated.");
+                if (isSolved)
+                {
+                    Console.WriteLine("Solved Sudoku board:");
+                    board.PrintBoard();
+                    Console.WriteLine($"Time taken to solve: {stopwatch.ElapsedMilliseconds} ms");
+                }
             }
-
-            return isSolved;
         }
     }
 }

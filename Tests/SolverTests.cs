@@ -3,7 +3,7 @@ using omegaSudoku.CoreLogic;
 using omegaSudoku.Interfaces;
 using omegaSudoku.Exceptions;
 using Xunit;
-using omegaSudoku.BoardAndCells;
+using omegaSudoku.Board;
 using omegaSudoku.Heuristics;
 
 namespace SudokuTests

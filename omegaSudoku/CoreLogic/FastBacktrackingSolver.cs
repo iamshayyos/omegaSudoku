@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using omegaSudoku.Interfaces;
-using omegaSudoku.BoardAndCells;
+using omegaSudoku.Board;
 using omegaSudoku.Exceptions;
 
 namespace omegaSudoku.CoreLogic

@@ -1,29 +1,32 @@
-﻿using System;
+﻿using omegaSudoku.Board;
 
 namespace omegaSudoku.CoreLogic
 {
     public class SolverState
     {
-        public int Size { get; private set; }
-        public int SubSize { get; private set; }
-        public int FullMask { get; private set; }
-        public int[] RowUsed { get; private set; }
-        public int[] ColUsed { get; private set; }
-        public int[] BoxUsed { get; private set; }
+        public SudokuBoard Board { get; }
+        public int Size { get; }
+        public int SubSize { get; }
+        public int FullMask { get; }
+        public int[] RowUsed { get; }
+        public int[] ColUsed { get; }
+        public int[] BoxUsed { get; }
 
-        public SolverState(int size)
+        public SolverState(SudokuBoard board, int size, int subSize, int fullMask,
+                           int[] rowUsed, int[] colUsed, int[] boxUsed)
         {
+            Board = board;
             Size = size;
-            SubSize = (int)Math.Sqrt(size);
-            FullMask = (1 << size) - 1;
-            RowUsed = new int[size];
-            ColUsed = new int[size];
-            BoxUsed = new int[size];
+            SubSize = subSize;
+            FullMask = fullMask;
+            RowUsed = rowUsed;
+            ColUsed = colUsed;
+            BoxUsed = boxUsed;
         }
 
         public int GetBoxIndex(int row, int col)
         {
-            return row / SubSize * SubSize + col / SubSize;
+            return (row / SubSize) * SubSize + (col / SubSize);
         }
     }
 }

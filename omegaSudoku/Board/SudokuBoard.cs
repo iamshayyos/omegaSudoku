@@ -1,18 +1,18 @@
 ﻿using System;
-namespace omegaSudoku.BoardAndCells
+namespace omegaSudoku.Board
 {
     public class SudokuBoard
     {
         public int[,] Board { get; private set; }
         public int Size { get; private set; }
-
+        // Constructor
         public SudokuBoard(string input, int size)
         {
             Size = size;
             Board = new int[size, size];
             InitializeBoard(input);
         }
-
+        // Initialize the board
         private void InitializeBoard(string input)
         {
             for (int i = 0; i < input.Length && i < Size * Size; i++)
@@ -20,7 +20,7 @@ namespace omegaSudoku.BoardAndCells
                 Board[i / Size, i % Size] = CharToInt(input[i]);
             }
         }
-
+        // Convert char to int
         private int CharToInt(char c)
         {
             if (char.IsDigit(c))
@@ -29,17 +29,16 @@ namespace omegaSudoku.BoardAndCells
                 return char.ToUpper(c) - 'A' + 10;
             return 0;
         }
-
+        // Convert cell value to string
         private string CellValueToString(int val)
         {
             return val == 0 ? "." : val.ToString();
         }
-
+        // Print the board
         public void PrintBoard()
         {
             int subSize = (int)Math.Sqrt(Size);
 
-            // Determine the maximum cell width for alignment
             int maxLen = 1;
             for (int r = 0; r < Size; r++)
             {
@@ -52,7 +51,6 @@ namespace omegaSudoku.BoardAndCells
             }
             int cellWidth = maxLen + 1;
 
-            // Create a horizontal line
             string CreateHorizontalLine()
             {
                 System.Text.StringBuilder sb = new System.Text.StringBuilder();
@@ -68,7 +66,6 @@ namespace omegaSudoku.BoardAndCells
                 return sb.ToString();
             }
 
-            // Print rows
             for (int row = 0; row < Size; row++)
             {
                 if (row % subSize == 0)
@@ -89,7 +86,6 @@ namespace omegaSudoku.BoardAndCells
                 Console.WriteLine("|");
             }
 
-            // Print bottom border
             Console.WriteLine(CreateHorizontalLine());
         }
     }

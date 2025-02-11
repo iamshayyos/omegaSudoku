@@ -6,7 +6,7 @@ namespace omegaSudoku.IO
 {
     /// <summary>
     /// Handles the logic for retrieving a Sudoku puzzle string 
-    /// from either manual (console) input or from a file.
+    /// from either console input or from a file.
     /// </summary>
     public class SudokuInputProvider
     {
@@ -19,7 +19,7 @@ namespace omegaSudoku.IO
         {
             Console.WriteLine("\nChoose an option:");
             Console.WriteLine("1) Enter Sudoku puzzle manually (as a single string)");
-            Console.WriteLine("2) Read Sudoku puzzle from a file");
+            Console.WriteLine("2) Read Sudoku puzzle from a txt file");
             Console.WriteLine("Or type 'end' to exit.");
 
             string choice = Console.ReadLine()?.Trim().ToLower();
@@ -66,7 +66,7 @@ namespace omegaSudoku.IO
         /// </summary>
         private string GetFileInput()
         {
-            Console.WriteLine("Please enter the full path to the file containing the Sudoku puzzle:");
+            Console.WriteLine("Please enter the full path to the file containing the Sudoku puzzle (make sure the file contains only one sudoku at a time:");
             string filePath = Console.ReadLine();
 
             if (string.IsNullOrWhiteSpace(filePath))
@@ -77,6 +77,10 @@ namespace omegaSudoku.IO
             if (!File.Exists(filePath))
             {
                 throw new FileNotFoundException("File not found. Please check the path and try again.");
+            }
+            if (!Path.GetExtension(filePath).ToLower().Equals(".txt"))
+            {
+                throw new InvalidInputException("File must be a .txt file. Please provide a valid .txt file path.");
             }
 
             try

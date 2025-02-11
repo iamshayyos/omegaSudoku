@@ -2,20 +2,21 @@
 using System.Collections.Generic;
 using System.Numerics;
 using omegaSudoku.Interfaces;
-using omegaSudoku.BoardAndCells;
+using omegaSudoku.Board;
 
 namespace omegaSudoku.CoreLogic
 {
     /// <summary>
-    /// solver for 25x25 Sudoku puzzles.
-    /// Uses heavy constraint propagation (naked singles), a precomputed empty cells list with MRV heuristic (with swapping),
-    /// and bit-level operations for candidate computation and in-place constraint updates.
+    /// Solver for big boards.
+    /// Uses heavy constraint propagation (naked singles), MRV heuristic with swapping,
+    /// and periodic global constraint checks (every CHECK_INTERVAL levels) to prune unsolvable branches fast.
+    /// Optimized to solve these boards quickly without degrading performance for smaller boards.
     /// </summary>
     public class FastAdvanced25x25Solver : ISudokuSolver
     {
         private int size;
         private int subSize;
-        private int fullMask; // For 25x25: fullMask = (1 << 25) - 1
+        private int fullMask; // For 25x25: (1 << 25) - 1
 
         private int[,] board;
         private int[] rowUsed;
@@ -25,10 +26,13 @@ namespace omegaSudoku.CoreLogic
         // List of empty cell coordinates (row, column)
         private List<(int r, int c)> empties;
 
+        // Perform global constraint check every CHECK_INTERVAL recursion levels.
+        private const int CHECK_INTERVAL = 10;
+
         /// <summary>
-        /// Main method to solve the given Sudoku board.
+        /// Solve the given Sudoku board.
         /// </summary>
-        /// <param name="sudokuBoard">The Sudoku board to solve.</param>
+        /// <param name="sudokuBoard">The board to solve.</param>
         /// <returns>True if solved, false otherwise.</returns>
         public bool Solve(SudokuBoard sudokuBoard)
         {
@@ -49,9 +53,7 @@ namespace omegaSudoku.CoreLogic
                 {
                     int val = board[r, c];
                     if (val == 0)
-                    {
                         empties.Add((r, c));
-                    }
                     else
                     {
                         int bit = 1 << (val - 1);
@@ -63,21 +65,21 @@ namespace omegaSudoku.CoreLogic
                 }
             }
 
-            //Apply Naked Singles 
-            if (!ApplyNakedSingles())
-                return false;
-            // Rebuild empties list after propagation.
-            RebuildEmpties();
+            // For boards 16x16 and larger, apply naked singles propagation to prune domains.
+            if (size >= 16)
+            {
+                if (!ApplyNakedSingles())
+                    return false;
+                RebuildEmpties();
+            }
 
-            // Start the recursive backtracking.
             return SolveRecursively(0);
         }
 
         /// <summary>
-        /// Applies the "naked singles" technique: if an empty cell has exactly one candidate, fill it immediately.
-        /// Repeats until no progress is made.
+        /// Applies naked singles propagation repeatedly.
+        /// If any cell has zero candidates, returns false immediately.
         /// </summary>
-        /// <returns>True if no contradiction is found, false otherwise.</returns>
         private bool ApplyNakedSingles()
         {
             bool progress;
@@ -97,7 +99,7 @@ namespace omegaSudoku.CoreLogic
                             return false; // Contradiction found.
                         if (count == 1)
                         {
-                            int bit = candidates & -candidates; // Lowest set bit.
+                            int bit = candidates & -candidates; // lowest set bit
                             int val = BitOperations.TrailingZeroCount((uint)bit) + 1;
                             board[r, c] = val;
                             rowUsed[r] |= bit;
@@ -112,7 +114,7 @@ namespace omegaSudoku.CoreLogic
         }
 
         /// <summary>
-        /// Rebuilds the empties list to contain only the cells that are still empty.
+        /// Rebuilds the empties list to include only cells that remain unassigned.
         /// </summary>
         private void RebuildEmpties()
         {
@@ -129,25 +131,145 @@ namespace omegaSudoku.CoreLogic
         }
 
         /// <summary>
-        /// Recursively assigns values to empty cells using the MRV heuristic.
-        /// Uses swapping in the empties list to fix the order and avoid re-scanning the entire list.
+        /// Global constraint check: for each row, column, and box,
+        /// for every missing digit, ensure there is at least one empty cell
+        /// whose candidate mask allows that digit.
+        /// Returns false if any unit is unsolvable.
+        /// </summary>
+        private bool GlobalConstraintCheck()
+        {
+            // Check rows.
+            for (int r = 0; r < size; r++)
+            {
+                int missing = fullMask & ~rowUsed[r];
+                if (missing != 0)
+                {
+                    for (int digit = 1; digit <= size; digit++)
+                    {
+                        int bit = 1 << (digit - 1);
+                        if ((missing & bit) != 0)
+                        {
+                            bool found = false;
+                            for (int c = 0; c < size; c++)
+                            {
+                                if (board[r, c] == 0)
+                                {
+                                    int boxIndex = (r / subSize) * subSize + (c / subSize);
+                                    int candidates = fullMask & ~(rowUsed[r] | colUsed[c] | boxUsed[boxIndex]);
+                                    if ((candidates & bit) != 0)
+                                    {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!found)
+                                return false;
+                        }
+                    }
+                }
+            }
+
+            // Check columns.
+            for (int c = 0; c < size; c++)
+            {
+                int missing = fullMask & ~colUsed[c];
+                if (missing != 0)
+                {
+                    for (int digit = 1; digit <= size; digit++)
+                    {
+                        int bit = 1 << (digit - 1);
+                        if ((missing & bit) != 0)
+                        {
+                            bool found = false;
+                            for (int r = 0; r < size; r++)
+                            {
+                                if (board[r, c] == 0)
+                                {
+                                    int boxIndex = (r / subSize) * subSize + (c / subSize);
+                                    int candidates = fullMask & ~(rowUsed[r] | colUsed[c] | boxUsed[boxIndex]);
+                                    if ((candidates & bit) != 0)
+                                    {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!found)
+                                return false;
+                        }
+                    }
+                }
+            }
+
+            // Check boxes.
+            for (int br = 0; br < subSize; br++)
+            {
+                for (int bc = 0; bc < subSize; bc++)
+                {
+                    int boxIndex = br * subSize + bc;
+                    int missing = fullMask & ~boxUsed[boxIndex];
+                    if (missing != 0)
+                    {
+                        for (int digit = 1; digit <= size; digit++)
+                        {
+                            int bit = 1 << (digit - 1);
+                            if ((missing & bit) != 0)
+                            {
+                                bool found = false;
+                                for (int r = br * subSize; r < br * subSize + subSize; r++)
+                                {
+                                    for (int c = bc * subSize; c < bc * subSize + subSize; c++)
+                                    {
+                                        if (board[r, c] == 0)
+                                        {
+                                            int candidates = fullMask & ~(rowUsed[r] | colUsed[c] | boxUsed[boxIndex]);
+                                            if ((candidates & bit) != 0)
+                                            {
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (found)
+                                        break;
+                                }
+                                if (!found)
+                                    return false;
+                            }
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Recursively assigns values to empty cells using MRV selection.
+        /// Periodically performs a global constraint check (every CHECK_INTERVAL levels) to fail fast on unsolvable branches.
         /// </summary>
         /// <param name="pos">Current index in the empties list.</param>
-        /// <returns>True if a solution is found, false otherwise.</returns>
+        /// <returns>True if a complete solution is found, false if backtracking is required.</returns>
         private bool SolveRecursively(int pos)
         {
+            if (pos % CHECK_INTERVAL == 0)
+            {
+                if (!GlobalConstraintCheck())
+                    return false;
+            }
+
             if (pos == empties.Count)
                 return true; // All cells assigned.
 
             int minCandidates = int.MaxValue;
             int selectedIndex = pos;
             int candidateMask = 0;
-            // MRV: select the cell with the fewest candidates among empties
+            // MRV: select the cell with the fewest candidates.
             for (int i = pos; i < empties.Count; i++)
             {
                 (int r, int c) = empties[i];
-                int boxIdx = (r / subSize) * subSize + (c / subSize);
-                int candidates = fullMask & ~(rowUsed[r] | colUsed[c] | boxUsed[boxIdx]);
+                int boxIndex = (r / subSize) * subSize + (c / subSize);
+                int candidates = fullMask & ~(rowUsed[r] | colUsed[c] | boxUsed[boxIndex]);
                 int count = BitOperations.PopCount((uint)candidates);
                 if (count < minCandidates)
                 {
@@ -159,7 +281,7 @@ namespace omegaSudoku.CoreLogic
                 }
             }
             if (minCandidates == 0)
-                return false; // Dead end.
+                return false;
 
             // Swap the selected cell into the current position.
             (int r, int c) temp = empties[pos];
@@ -167,29 +289,28 @@ namespace omegaSudoku.CoreLogic
             empties[selectedIndex] = temp;
 
             (int r0, int c0) = empties[pos];
-            int boxIndex = (r0 / subSize) * subSize + (c0 / subSize);
+            int boxIdx = (r0 / subSize) * subSize + (c0 / subSize);
 
-            // Try each candidate for the selected cell.
+            // Try every candidate (each set bit) for the selected cell.
             while (candidateMask != 0)
             {
                 int bit = candidateMask & -candidateMask; // Extract lowest set bit.
                 candidateMask -= bit;
                 int val = BitOperations.TrailingZeroCount((uint)bit) + 1;
 
-                // Place the candidate.
                 board[r0, c0] = val;
                 rowUsed[r0] |= bit;
                 colUsed[c0] |= bit;
-                boxUsed[boxIndex] |= bit;
+                boxUsed[boxIdx] |= bit;
 
                 if (SolveRecursively(pos + 1))
                     return true;
 
-                //  undo the assignment.
+                // Backtrack: undo the assignment.
                 board[r0, c0] = 0;
                 rowUsed[r0] &= ~bit;
                 colUsed[c0] &= ~bit;
-                boxUsed[boxIndex] &= ~bit;
+                boxUsed[boxIdx] &= ~bit;
             }
 
             return false;
