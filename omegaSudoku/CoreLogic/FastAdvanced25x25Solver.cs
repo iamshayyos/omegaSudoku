@@ -22,6 +22,11 @@ public class FastAdvanced25x25Solver : ISudokuSolver
         };
     }
 
+    /// <summary>
+    /// Solve the given SudokuBoard.
+    /// </summary>
+    /// <param name="sudokuBoard">The Sudoku board to solve.</param>
+    /// <returns>True if solved; otherwise, an UnsolvableBoardException is thrown.</returns>
     public bool Solve(SudokuBoard sudokuBoard)
     {
         var state = new SolverState(sudokuBoard);

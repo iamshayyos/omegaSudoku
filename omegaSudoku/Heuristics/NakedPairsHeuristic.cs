@@ -104,13 +104,18 @@ namespace omegaSudoku.Heuristics
 
             return changed;
         }
-
+        /// <summary>
+        /// Applies the naked pairs heuristic on a given column.
+        /// Looks for two cells in the column that share the same pair of candidates,
+        /// then removes those two candidates from all other cells in that column.
+        /// </summary>
         private bool ApplyNakedPairsInColumn(SudokuBoard board, SolverState state, int col)
         {
             bool changed = false;
             int size = state.Size;
+            // Dictionary to map a candidate mask (with exactly 2 candidates) to the list of row indices that have that mask.
             var pairCells = new Dictionary<int, List<int>>();
-
+            // Iterate through each cell in the column to find cells with exactly 2 candidates.
             for (int r = 0; r < size; r++)
             {
                 if (board.Board[r, col] == 0)
@@ -125,14 +130,18 @@ namespace omegaSudoku.Heuristics
                     }
                 }
             }
+            // Process each candidate mask that appears exactly in 2 cells.
+
             foreach (var kvp in pairCells)
             {
                 if (kvp.Value.Count == 2)
                 {
                     int pairMask = kvp.Key;
                     var rowsWithPair = kvp.Value;
+                    // Remove the naked pair candidates from other cells in the same box.
                     for (int r = 0; r < size; r++)
                     {
+                        // Skip cells that are part of the naked pair.
                         if (!rowsWithPair.Contains(r) && board.Board[r, col] == 0)
                         {
                             int used = state.RowUsed[r] | state.ColUsed[col] | state.BoxUsed[state.GetBoxIndex(r, col)];

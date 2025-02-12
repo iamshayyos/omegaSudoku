@@ -26,7 +26,7 @@ namespace omegaSudoku.IO
             _validator = validator;
             _inputProvider = new SudokuInputProvider();
 
-            // Handle Ctrl+C input for graceful termination.
+            // Handle Ctrl+C 
             Console.CancelKeyPress += new ConsoleCancelEventHandler(Console_CancelKeyPress);
 
         }
