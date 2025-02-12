@@ -108,5 +108,43 @@ namespace SudokuTests
             // Assert
             Assert.True(solved);
         }
+        [Fact]
+        public void Solve_LargeSudoku_ShouldCompleteInReasonableTime()
+        {
+            // Arrange: Create an empty 25x25 board (hardest case)
+            string largeEmptyBoard = new string('0', 625);
+            SudokuBoard board = new SudokuBoard(largeEmptyBoard, 25);
+
+            // Act
+            bool solved = _solver.Solve(board);
+
+            // Assert
+            Assert.True(solved);
+        }
+
+        [Fact]
+        public void Solve_OneEmptyCell_ShouldSolveImmediately()
+        {
+            // Arrange: A 9x9 board missing just one number
+            string almostSolvedBoard =
+                "123456789" +
+                "456789123" +
+                "789123456" +
+                "231564897" +
+                "564897231" +
+                "897231564" +
+                "312648975" +
+                "645972318" +
+                "978315640"; // '2' is missing at the end
+
+            SudokuBoard board = new SudokuBoard(almostSolvedBoard, 9);
+
+            // Act
+            bool solved = _solver.Solve(board);
+
+            // Assert
+            Assert.True(solved);
+        }
+
     }
 }
