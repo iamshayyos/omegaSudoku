@@ -11,12 +11,7 @@ namespace OmegaSudoku
         static void Main(string[] args)
         {
             IValidator validator = new Validator();
-            ISudokuSolver solver = new SudokuSolver(new IHeuristic[]
-            {
-                new SingleCandidateHeuristic(),
-                new HiddenSingleHeuristic()
-            });
-
+            ISudokuSolver solver = new SudokuSolver();
             IOHandler ioHandler = new IOHandler(solver, validator);
             ioHandler.Run();
         }

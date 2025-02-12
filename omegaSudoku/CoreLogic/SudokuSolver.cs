@@ -8,12 +8,6 @@ namespace omegaSudoku.CoreLogic
     /// </summary>
     public class SudokuSolver : ISudokuSolver
     {
-        private readonly IHeuristic[] _heuristics;
-
-        public SudokuSolver(IHeuristic[] heuristics)
-        {
-            _heuristics = heuristics;
-        }
 
         public bool Solve(SudokuBoard board)
         {
