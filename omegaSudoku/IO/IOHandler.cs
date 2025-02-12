@@ -27,22 +27,21 @@ namespace omegaSudoku.IO
             _inputProvider = new SudokuInputProvider();
 
             // Handle Ctrl+C input for graceful termination.
-            Console.CancelKeyPress += (sender, e) =>
-            {
-                Console.WriteLine("\nCtrl+C detected. Do you really want to exit? (y/n)");
-                string response = Console.ReadLine()?.Trim().ToLower();
-                if (response == "y")
-                {
-                    _exitRequested = true;
-                    Console.WriteLine("Exiting program...");
-                }
-                else
-                {
-                    e.Cancel = true; // Cancel exit if user decides not to quit.
-                    Console.WriteLine("Continuing...");
-                }
-            };
+            Console.CancelKeyPress += new ConsoleCancelEventHandler(Console_CancelKeyPress);
+
         }
+
+
+        //Event handler that is triggered when the user presses Ctrl+C.
+        private void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            Console.WriteLine("\nCtrl+C detected. Exiting ...");
+            e.Cancel = true;
+            _exitRequested = true;
+            Environment.Exit(0);
+        }
+
+
 
         /// <summary>
         /// Main execution loop for reading input, validating, solving, and displaying the Sudoku board.
@@ -153,6 +152,8 @@ namespace omegaSudoku.IO
                     Console.WriteLine($"Time taken to solve: {stopwatch.ElapsedMilliseconds} ms");
                 }
             }
+            Console.WriteLine("Exiting the program, Goodbye!");
         }
     }
 }
+
